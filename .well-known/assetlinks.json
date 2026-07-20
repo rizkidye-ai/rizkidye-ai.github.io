@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "io.github.rizkidye_ai.twa",
+        "sha256_cert_fingerprints": ["82:C7:4B:00:EA:6C:3E:07:66:74:92:07:B8:3D:08:D6:07:4C:8A:EE:E7:04:B0:B5:35:F8:0D:C9:40:2F:EB:17"]
+      }
+    }]
