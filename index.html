@@ -439,6 +439,19 @@
   #login{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;}
   html,body{min-height:100vh;background:#1c2f4e;}
   /* LOGIN-FULL-END */
+/* DASHBOARD */
+.dash-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px}
+.dash-card{background:#fff;border:1px solid #eef2f8;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.dc-l{font-size:12px;color:#7a8699;font-weight:600;margin-bottom:6px}
+.dc-v{font-size:22px;font-weight:800;color:#25324a;line-height:1.1}
+.dc-s{font-size:11px;color:#9fb0c6;margin-top:4px}
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+.dash-chart-box{background:#fff;border:1px solid #eef2f8;border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.dash-chart-box h4{margin:0 0 12px;font-size:13px;color:#25324a;font-weight:700}
+.dash-chart-box canvas{max-height:240px}
+.dash-low{margin-top:16px;background:#fff8f3;border:1px solid #f4d4bd;border-radius:14px;padding:14px 16px}
+.dash-low h4{margin:0 0 10px;font-size:13px;color:#c25a1f}
+.dash-low-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed #f0dcc8;font-size:13px}
 </style>
 </head>
 <body>
@@ -495,6 +508,7 @@
         <button class="tb-btn" id="btnUsers" onclick="openUserMgmt()">👥 Staff</button>
         <button class="tb-btn" id="btnEval" onclick="openEval()">📈 Evaluasi Bulanan</button>
         <button class="tb-btn" id="btnShop" onclick="openShop()">🏪 Pengaturan Toko</button>
+        <button class="tb-btn" id="btnDashboard" onclick="openDashboard()">📊 Dashboard</button>
         <button class="tb-btn" id="btnCapital" onclick="openCapital()">💼 Modal &amp; Aset</button>
         <button class="tb-btn" style="color:#e03131" onclick="logout()">🚪 Keluar</button>
       </div>
@@ -1044,8 +1058,23 @@
     </div>
   </div>
 </div>
+<!-- DASHBOARD -->
+<div class="overlay hidden" id="dashOverlay">
+  <div class="sheet" style="max-width:920px">
+    <header><h3>📊 Dashboard</h3>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button onclick="loadDashboard()" style="background:#eef2f8;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-weight:700;color:#25324a">🔄 Refresh</button>
+        <button onclick="closeOverlay('dashOverlay')">✕</button>
+      </div>
+    </header>
+    <div class="sheet-body" id="dashBody">
+      <div style="text-align:center;color:#b3a999;padding:40px">memuat dashboard...</div>
+    </div>
+  </div>
+</div>
 <div id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="api.js"></script>
 <script>
@@ -3095,6 +3124,48 @@ function renderKk(){
   const L=d.list||[];
   h+=`<h4 class="rpt-sec" style="margin:14px 0 6px">Rincian (${L.length})</h4>`+(L.length?L.map(e=>`<div class="inv-row"><div class="ir-name"><b>${e.name}</b>${e.untuk?` <span class="role-badge" style="background:#3b6fd6;color:#fff">${e.untuk}</span>`:""}<div class="ir-cat">${idDate(e.date)} · ${e.cat}${e.note?' · '+e.note:''} · oleh ${e.by}</div></div><div class="pr-price" style="color:#e03131">${rp(e.amount)}</div></div>`).join(""):'<div style="text-align:center;color:#b3a999;padding:16px">Tidak ada kas keluar di periode ini.</div>');
   document.getElementById("kkBody").innerHTML=h;
+}
+/* ---------- DASHBOARD ---------- */
+let dashCharts=[];
+function openDashboard(){
+  if(!isAdmin()){toast("Khusus Admin/Owner");return;}
+  document.getElementById("dashOverlay").classList.remove("hidden");
+  loadDashboard();
+}
+async function loadDashboard(){
+  const body=document.getElementById("dashBody");
+  body.innerHTML='<div style="text-align:center;color:#b3a999;padding:40px">memuat dashboard...</div>';
+  let d;
+  try{d=await run("getDashboard",state.token);}catch(e){body.innerHTML='<div style="text-align:center;color:#e03131;padding:40px">Gagal memuat.</div>';return;}
+  dashCharts.forEach(c=>{try{c.destroy();}catch(e){}});dashCharts=[];
+  const rpS=n=>"Rp "+(Number(n)||0).toLocaleString("id-ID");
+  const c=d.cards;
+  body.innerHTML=`
+    <div class="dash-cards">
+      <div class="dash-card" style="border-left:4px solid #2f9e44"><div class="dc-l">💰 Omzet Hari Ini</div><div class="dc-v">${rpS(c.omzet)}</div><div class="dc-s">${c.tx} transaksi</div></div>
+      <div class="dash-card" style="border-left:4px solid #3b6fd6"><div class="dc-l">💵 Kas Laci</div><div class="dc-v">${rpS(c.kasLaci)}</div><div class="dc-s">tunai + modal − keluar</div></div>
+      <div class="dash-card" style="border-left:4px solid #e8590c"><div class="dc-l">📦 Stok Menipis</div><div class="dc-v">${c.lowCount}</div><div class="dc-s">produk perlu restock</div></div>
+      <div class="dash-card" style="border-left:4px solid #e03131"><div class="dc-l">📋 Piutang</div><div class="dc-v">${rpS(c.piutang)}</div><div class="dc-s">${c.piutangCount} orang belum lunas</div></div>
+    </div>
+    <div class="dash-grid">
+      <div class="dash-chart-box"><h4>📈 Omzet 7 Hari Terakhir</h4><canvas id="ch7"></canvas></div>
+      <div class="dash-chart-box"><h4>🏆 Produk Terlaris (7 hari)</h4><canvas id="chTop"></canvas></div>
+      <div class="dash-chart-box"><h4>💳 Pembayaran Hari Ini</h4><canvas id="chPay"></canvas></div>
+      <div class="dash-chart-box"><h4>⏰ Jam Ramai Hari Ini</h4><canvas id="chHour"></canvas></div>
+    </div>
+    ${d.lowStock.length?`<div class="dash-low"><h4>⚠️ Perlu Restock Segera</h4>${d.lowStock.map(s=>`<div class="dash-low-row"><span>${s.name}</span><span style="color:#e8590c;font-weight:700">sisa ${s.stock} (min ${s.min})</span></div>`).join("")}</div>`:""}
+  `;
+  const navy="#25324a",coffee="#c2703c",grid="rgba(0,0,0,.06)";
+  const shortD=k=>{const p=k.split("-");return p[2]+"/"+p[1];};
+  // 1) omzet 7 hari
+  dashCharts.push(new Chart(document.getElementById("ch7"),{type:"line",data:{labels:d.chart7.map(x=>shortD(x.d)),datasets:[{data:d.chart7.map(x=>x.v),borderColor:coffee,backgroundColor:"rgba(194,112,60,.12)",fill:true,tension:.35,pointRadius:4,pointBackgroundColor:coffee}]},options:{plugins:{legend:{display:false}},scales:{y:{grid:{color:grid},ticks:{callback:v=>"Rp"+(v/1000)+"k"}},x:{grid:{display:false}}}}}));
+  // 2) produk terlaris
+  dashCharts.push(new Chart(document.getElementById("chTop"),{type:"bar",data:{labels:d.topProduk.map(x=>x.name),datasets:[{data:d.topProduk.map(x=>x.qty),backgroundColor:navy,borderRadius:6}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{grid:{color:grid}},y:{grid:{display:false}}}}}));
+  // 3) pembayaran (pie)
+  const payC=["#2f9e44","#3b6fd6","#e8590c","#9b59b6","#e03131"];
+  dashCharts.push(new Chart(document.getElementById("chPay"),{type:"doughnut",data:{labels:d.pay.map(x=>x.name),datasets:[{data:d.pay.map(x=>x.v),backgroundColor:payC}]},options:{plugins:{legend:{position:"bottom"}}}}));
+  // 4) jam ramai
+  dashCharts.push(new Chart(document.getElementById("chHour"),{type:"bar",data:{labels:d.hours.map(x=>x.h+":00"),datasets:[{data:d.hours.map(x=>x.v),backgroundColor:coffee,borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{grid:{color:grid},ticks:{callback:v=>"Rp"+(v/1000)+"k"}},x:{grid:{display:false}}}}}));
 }
 /* ---------- INIT ---------- */
 document.addEventListener("pointermove",docPointerMove);

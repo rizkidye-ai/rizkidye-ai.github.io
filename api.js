@@ -1263,6 +1263,80 @@ const API = {
     if (payload.price !== undefined) upd.price = Number(payload.price)||0;
     if (Object.keys(upd).length) need(( await db.from('products').update(upd).eq('id', String(id)) ).error);
     return { products: await getProductsList() };
+  },
+
+  /* ================= DASHBOARD (Owner/Admin) ================= */
+
+  async getDashboard(token){
+    const u = requireUser(token);
+    if (!isAdminRole(u.role)) throw new Error('Akses ditolak — khusus Admin/Owner.');
+    const today = bizYmd(new Date());
+    const p7 = new Date(); p7.setDate(p7.getDate()-6);
+    const from7 = bizYmd(p7);
+
+    const [salesRes, prodRes, debtRes, expRes, coRes] = await Promise.all([
+      db.from('sales').select('datetime,total,method,mix,items,kasir'),
+      db.from('products').select('id,name,stock,min,mitra,stok_induk,active'),
+      db.from('debts').select('total,paid'),
+      db.from('expenses').select('date,amount,type'),
+      db.from('cash_open').select('opening').eq('date', today).maybeSingle()
+    ]);
+    need(salesRes.error);
+
+    const prodM = {}; (prodRes.data||[]).forEach(p => { const m=String(p.mitra||'').trim(); if(m) prodM[String(p.id)]=1; });
+
+    // hari ini
+    let omzetToday=0, txToday=0, cashToday=0;
+    const payToday={}, byHour={}, prodQty={};
+    const daily={}; // 7 hari
+    for(let i=0;i<7;i++){ const d=new Date(); d.setDate(d.getDate()-i); daily[bizYmd(d)]=0; }
+
+    (salesRes.data||[]).forEach(s => {
+      if(!s.datetime) return;
+      const k = bizYmd(s.datetime);
+      const t = Number(s.total)||0;
+      if(k===today){
+        if(t>0){ txToday++; omzetToday+=t;
+          const h=new Date(s.datetime).getHours(); byHour[h]=(byHour[h]||0)+t;
+        }
+        const mix=(String(s.method)==='Campur'&&s.mix)?s.mix:null;
+        if(mix){ Object.keys(mix).forEach(m=>{ payToday[m]=(payToday[m]||0)+(Number(mix[m])||0); if(m==='Tunai')cashToday+=Number(mix[m])||0; }); }
+        else { const m=s.method||'Lainnya'; payToday[m]=(payToday[m]||0)+t; if(m==='Tunai')cashToday+=t; }
+      }
+      if(k>=from7 && daily[k]!==undefined && t>0){ daily[k]+=t;
+        (s.items||[]).forEach(it=>{ if(prodM[String(it.id)])return; prodQty[it.name]=(prodQty[it.name]||0)+Number(it.qty); });
+      }
+    });
+
+    // kas laci hari ini = modal awal + tunai - pengeluaran harian hari ini
+    const opening = coRes.data ? Number(coRes.data.opening)||0 : 0;
+    const expToday = (expRes.data||[]).filter(e=>{ if(!e.date)return false; const k=(new Date(e.date)).toISOString().slice(0,10); return k===today && e.type!=='Bulanan'; }).reduce((a,e)=>a+(Number(e.amount)||0),0);
+    const kasLaci = opening + cashToday - expToday;
+
+    // stok menipis
+    const lowStock = (prodRes.data||[]).filter(p=> p.active && String(p.mitra||'').trim()==='' && String(p.stok_induk||'').trim()==='' && Number(p.stock) <= Number(p.min||0))
+      .map(p=>({name:p.name, stock:Number(p.stock)||0, min:Number(p.min)||0}))
+      .sort((a,b)=>a.stock-b.stock);
+
+    // piutang
+    const piutang = (debtRes.data||[]).filter(d=>!d.paid).reduce((a,d)=>a+(Number(d.total)||0),0);
+    const piutangCount = (debtRes.data||[]).filter(d=>!d.paid).length;
+
+    // chart data
+    const chart7 = Object.keys(daily).sort().map(k=>({d:k, v:daily[k]}));
+    const topProduk = Object.keys(prodQty).map(n=>({name:n, qty:prodQty[n]})).sort((a,b)=>b.qty-a.qty).slice(0,7);
+    const payArr = Object.keys(payToday).map(m=>({name:m, v:payToday[m]}));
+    const hours = []; for(let h=6;h<=23;h++) hours.push({h:h, v:byHour[h]||0});
+
+    return {
+      today: today,
+      cards: { omzet:omzetToday, tx:txToday, kasLaci:kasLaci, lowCount:lowStock.length, piutang:piutang, piutangCount:piutangCount },
+      lowStock: lowStock.slice(0,8),
+      chart7: chart7,
+      topProduk: topProduk,
+      pay: payArr,
+      hours: hours
+    };
   }
 
 };
