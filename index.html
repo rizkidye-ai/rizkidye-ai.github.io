@@ -518,7 +518,7 @@
         <button class="tb-btn" id="btnEval" onclick="openEval()">📈 Evaluasi Bulanan</button>
         <button class="tb-btn" id="btnShop" onclick="openShop()">🏪 Pengaturan Toko</button>
         <button class="tb-btn" id="btnDashboard" onclick="openDashboard()">📊 Dashboard</button>
-        <button class="tb-btn" id="btnCapital" onclick="openCapital()">💼 Modal &amp; Aset</button>
+        <button class="tb-btn" id="btnBackup" onclick="downloadBackup()">💾 Backup Data</button>
         <button class="tb-btn" style="color:#e03131" onclick="logout()">🚪 Keluar</button>
       </div>
     </div>
@@ -3210,6 +3210,21 @@ async function showWelcome(){
   Chart.defaults.color="#9fb4d4";
   wcCharts.push(new Chart(document.getElementById("wc7"),{type:"line",data:{labels:d.chart7.map(x=>shortD(x.d)),datasets:[{data:d.chart7.map(x=>x.v),borderColor:coffee,backgroundColor:"rgba(194,112,60,.15)",fill:true,tension:.35,pointRadius:3,pointBackgroundColor:coffee}]},options:{plugins:{legend:{display:false}},scales:{y:{grid:{color:grid},ticks:{callback:v=>(v/1000)+"k"}},x:{grid:{display:false}}}}}));
   wcCharts.push(new Chart(document.getElementById("wcTop"),{type:"bar",data:{labels:d.topProduk.map(x=>x.name),datasets:[{data:d.topProduk.map(x=>x.qty),backgroundColor:navy,borderRadius:6}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{grid:{color:grid}},y:{grid:{display:false}}}}}));
+}
+async function downloadBackup(){
+  if(!isOwner()){toast("Khusus Owner");return;}
+  toast("💾 Menyiapkan backup...");
+  let data;
+  try{data=await run("getBackup",state.token);}catch(e){return;}
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  const now=new Date();const p=n=>String(n).padStart(2,'0');
+  a.href=url;a.download="backup-3rakan-"+now.getFullYear()+p(now.getMonth()+1)+p(now.getDate())+"-"+p(now.getHours())+p(now.getMinutes())+".json";
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  const n=(data.sales||[]).length;
+  toast("✅ Backup tersimpan ("+n+" transaksi) — simpan ke Google Drive!");
 }
 function openDashboard(){
   if(!isAdmin()){toast("Khusus Admin/Owner");return;}

@@ -1265,6 +1265,21 @@ const API = {
     return { products: await getProductsList() };
   },
 
+  /* ================= BACKUP DATA (Owner) ================= */
+
+  async getBackup(token){
+    const u = requireUser(token);
+    if (!/owner/i.test(u.role)) throw new Error('Khusus Owner.');
+    const tabs = ['products','users','tables_','settings','sales','expenses','stock_log','debts','consumption','cash_close','cash_open','assets'];
+    const out = { _app:'3 Rakan Kupi POS', _backupAt:new Date().toISOString(), _by:u.name };
+    for (const t of tabs){
+      const cols = (t==='users') ? 'id,name,role,color,active,phone,created,last_login' : '*';
+      const { data, error } = await db.from(t).select(cols);
+      out[t] = error ? [] : (data||[]);
+    }
+    return out;
+  },
+
   /* ================= DASHBOARD (Owner/Admin) ================= */
 
   async getDashboard(token){
