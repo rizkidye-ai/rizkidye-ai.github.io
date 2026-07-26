@@ -1077,11 +1077,13 @@ const API = {
     }));
     const hpp = expByCat['Belanja Stok'] || 0;
     const priveAmt = expByCat['Prive (Ambil Pemilik)'] || 0;
-    const opCats = {}; Object.keys(expByCat).forEach(c=>{ if(c!=='Belanja Stok' && c!=='Prive (Ambil Pemilik)') opCats[c]=expByCat[c]; });
-    const bebanUsaha = pengeluaran - priveAmt;
+    const isSavingsCat = c => /^Tabungan/.test(c||'');
+    const tabunganAmt = Object.keys(expByCat).filter(isSavingsCat).reduce((s,c)=>s+expByCat[c],0);
+    const opCats = {}; Object.keys(expByCat).forEach(c=>{ if(c!=='Belanja Stok' && c!=='Prive (Ambil Pemilik)' && !isSavingsCat(c)) opCats[c]=expByCat[c]; });
+    const bebanUsaha = pengeluaran - priveAmt - tabunganAmt;
     const pnl = { revMinuman:revMinuman, revMakanan:revMakanan, grossSales:revMinuman+revMakanan,
       disc:disc, netSales:omzet, hpp:hpp, labaKotor:omzet-hpp,
-      opCats:opCats, totalOp:bebanUsaha-hpp, labaBersih:omzet-bebanUsaha, prive:priveAmt };
+      opCats:opCats, totalOp:bebanUsaha-hpp, labaBersih:omzet-bebanUsaha, prive:priveAmt, tabungan:tabunganAmt };
 
     const km = {}; f.forEach(s => { const k=s.kasir||'(tanpa nama)'; if(!km[k])km[k]={count:0,omzet:0}; km[k].count++; km[k].omzet+=s.warkopVal; });
     const byKasir = Object.keys(km).map(n=>({name:n,count:km[n].count,omzet:km[n].omzet,avg:km[n].count?km[n].omzet/km[n].count:0})).sort((a,b)=>b.omzet-a.omzet);
@@ -1150,7 +1152,8 @@ const API = {
 
     const expR = (f,t) => { const o={total:0,harian:0,bulanan:0,stok:0};
       (expRes.data||[]).forEach(e=>{ if(!e.date) return; const k=ymd2(e.date); if(k<f||k>t) return;
-        const a=Number(e.amount)||0; o.total+=a; if(e.type==='Bulanan')o.bulanan+=a; else o.harian+=a; if((e.cat||'')==='Belanja Stok')o.stok+=a; }); return o; };
+        const cat=e.cat||''; if(cat==='Prive (Ambil Pemilik)'||/^Tabungan/.test(cat)) return; // bukan beban usaha
+        const a=Number(e.amount)||0; o.total+=a; if(e.type==='Bulanan')o.bulanan+=a; else o.harian+=a; if(cat==='Belanja Stok')o.stok+=a; }); return o; };
     const expC=expR(fromY,toY), expP=expR(pFromY,pToY);
     const consR = (f,t) => { let v=0; (consRes.data||[]).forEach(c=>{ if(!c.datetime)return; const k=bizYmd(c.datetime); if(k>=f&&k<=t) v+=Number(c.cost_value)||0; }); return v; };
     const consC=consR(fromY,toY), consP=consR(pFromY,pToY);

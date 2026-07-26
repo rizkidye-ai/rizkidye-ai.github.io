@@ -178,13 +178,13 @@
   .prod .added{position:absolute;top:8px;right:8px;background:var(--jade);color:#0A1712;font-size:11px;font-weight:700;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;}
 
   /* ===== CART ===== */
-  .cart{padding:0;display:flex;flex-direction:column;position:sticky;top:78px;max-height:calc(100vh - 96px);}
+  .cart{padding:0;display:flex;flex-direction:column;position:sticky;top:78px;max-height:calc(100vh - 96px);overflow-y:auto;}
   .cart h2{margin:0;padding:14px 16px;font-size:10px;font-family:var(--mono);letter-spacing:2px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:transparent;font-weight:600;border-radius:18px 18px 0 0;}
   .cart h2 .clear{background:none;color:var(--void);font-size:11px;font-weight:600;font-family:var(--mono);letter-spacing:.5px;text-transform:none;}
   .cart-close{display:none;background:none;color:var(--void);font-size:13px;font-weight:700;}
   .edit-banner{background:rgba(240,169,58,.08);border-bottom:1px solid var(--line);padding:10px 16px;font-size:13px;color:var(--amber-soft);font-weight:600;display:flex;align-items:center;justify-content:space-between;}
   .edit-banner .batal{background:none;color:var(--muted);font-size:12px;font-weight:600;text-decoration:underline;}
-  .cart-items{overflow-y:auto;padding:6px 10px;flex:1;min-height:50px;}
+  .cart-items{padding:6px 10px;min-height:50px;}
   .empty-cart{text-align:center;color:var(--muted-2);padding:24px 10px;font-size:13.5px;}
   .citem{display:flex;align-items:center;gap:10px;padding:9px 6px;border-bottom:1px dashed var(--line);}
   .citem .ci-name{flex:1;font-size:13.5px;font-weight:600;color:var(--txt);}
@@ -667,7 +667,7 @@
         <div class="grid2">
           <div class="ff"><label>Kategori</label><select id="exCat">
             <option>Belanja Stok</option><option>Operasional</option><option>Gaji Karyawan</option>
-            <option>Sewa Tempat</option><option>Listrik &amp; Air</option><option>Lain-lain</option></select></div>
+            <option>Sewa Tempat</option><option>Listrik &amp; Air</option><option>Tabungan Gas</option><option>Tabungan Listrik</option><option>Tabungan</option><option>Lain-lain</option></select></div>
           <div class="ff"><label>Tanggal</label><input id="exDate" type="date"></div>
         </div>
         <div class="ff"><label>Jenis Pengeluaran</label><select id="exType"><option>Harian</option><option>Bulanan</option></select></div>
@@ -2042,7 +2042,7 @@ async function saveCapitalC(){
 
 /* ---------- PENGELUARAN ---------- */
 let exFrom=null,exTo=null,exEditId=null,exData=[];
-const EXP_COLORS={"Belanja Stok":"#e8590c","Operasional":"#3b6fd6","Gaji Karyawan":"#7048e8","Sewa Tempat":"#2f9e44","Listrik & Air":"#d6336c","Lain-lain":"#868e96"};
+const EXP_COLORS={"Belanja Stok":"#e8590c","Operasional":"#3b6fd6","Gaji Karyawan":"#7048e8","Sewa Tempat":"#2f9e44","Listrik & Air":"#d6336c","Tabungan Gas":"#fd7e14","Tabungan Listrik":"#fab005","Tabungan":"#0ca678","Lain-lain":"#868e96"};
 function openExpense(){if(!isAdmin()){toast("Akses Pengeluaran khusus Admin/Owner");return;}resetExpenseForm();document.getElementById("exDate").value=ymd(new Date());setExpPreset("bulan");document.getElementById("expenseOverlay").classList.remove("hidden");}
 function setExpPreset(p){
   const now=new Date();["hari","bulan","custom"].forEach(x=>document.getElementById("ex-"+x).classList.toggle("on",x===p));
@@ -2365,14 +2365,28 @@ function renderHistory(){
   document.getElementById("histRangeLabel").textContent="📅 "+histRangeText()+((tf||tt)?(" · 🕐 "+(tf||"awal")+" – "+(tt||"akhir")):"")+" · "+histRendered.length+" transaksi";
   const box=document.getElementById("histList");
   if(!histRendered.length){box.innerHTML='<div style="text-align:center;color:#b3a999;padding:24px">Tidak ada transaksi.</div>';return;}
-  box.innerHTML=histRendered.map((s,i)=>{
-    const isRef=Number(s.total)<0||String(s.table)==="REFUND";
-    const n=s.items.reduce((a,it)=>a+Math.abs(Number(it.qty)),0);
-    const where=isRef?"↩️ REFUND":(!s.table?"Tanpa meja":(String(s.table)==="HUTANG"?"Pelunasan hutang":labelByNo(s.table)));
-    return `<div class="inv-row"><div class="ir-name"><b>${s.no}</b> <span class="ir-cat">${fmtHM(s.datetime)} · ${s.kasir}</span><div class="ir-cat">${where} · ${s.method} · ${n} item</div></div>
-      <div class="pr-price" style="${isRef?'color:#e03131':''}">${rp(s.total)}</div>
-      <button class="pr-row-btn" onclick="reprint(${i})">🧾 Struk</button>
-      ${isRef?'':`<button class="pr-row-btn" style="color:var(--alert);border-color:#f4c2c2" onclick="openRefund(${i})">↩️ Refund</button>`}</div>`;
+  const groups=[],gIdx={};
+  histRendered.forEach((s,i)=>{
+    const k=ymd(s.datetime);
+    if(gIdx[k]===undefined){gIdx[k]=groups.length;groups.push({key:k,items:[]});}
+    groups[gIdx[k]].items.push({s,i});
+  });
+  const today=ymd(new Date()),yd=new Date();yd.setDate(yd.getDate()-1);const yesterday=ymd(yd);
+  box.innerHTML=groups.map(g=>{
+    const label=g.key===today?"Hari ini":(g.key===yesterday?"Kemarin":idDate(new Date(g.key+"T00:00:00")));
+    const tot=g.items.reduce((sum,x)=>sum+Number(x.s.total),0);
+    const rows=g.items.map(({s,i})=>{
+      const isRef=Number(s.total)<0||String(s.table)==="REFUND";
+      const n=s.items.reduce((a,it)=>a+Math.abs(Number(it.qty)),0);
+      const where=isRef?"↩️ REFUND":(!s.table?"Tanpa meja":(String(s.table)==="HUTANG"?"Pelunasan hutang":labelByNo(s.table)));
+      return `<div class="inv-row"><div class="ir-name"><b>${s.no}</b> <span class="ir-cat">${fmtHM(s.datetime)} · ${s.kasir}</span><div class="ir-cat">${where} · ${s.method} · ${n} item</div></div>
+        <div class="pr-price" style="${isRef?'color:#e03131':''}">${rp(s.total)}</div>
+        <button class="pr-row-btn" onclick="reprint(${i})">🧾 Struk</button>
+        ${isRef?'':`<button class="pr-row-btn" style="color:var(--alert);border-color:#f4c2c2" onclick="openRefund(${i})">↩️ Refund</button>`}</div>`;
+    }).join("");
+    return `<h4 class="rpt-sec" style="margin:16px 0 6px;display:flex;justify-content:space-between;align-items:baseline;gap:10px">
+      <span>📅 ${label} <span style="font-weight:400;color:var(--muted)">(${g.key}) · ${g.items.length} transaksi</span></span>
+      <span style="white-space:nowrap">${rp(tot)}</span></h4>${rows}`;
   }).join("");
 }
 function printAllHist(){
