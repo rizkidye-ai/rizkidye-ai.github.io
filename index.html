@@ -580,7 +580,8 @@
       <div class="meja-toolbar">
         <div class="seg"><button id="mv-denah" class="seg-b on" onclick="setMejaView('denah')">Denah</button><button id="mv-daftar" class="seg-b" onclick="setMejaView('daftar')">Daftar</button><button id="mv-tab" class="seg-b" onclick="setMejaView('tab')">Tanpa Meja</button></div>
         <div style="flex:1;font-size:12.5px;color:#7c7263" id="mejaSummaryText"></div>
-        <button class="add-prod-btn" id="btnMejaSort" style="width:auto;margin:0;padding:8px 13px;background:#efe7db;color:#6f5836" onclick="toggleMejaSort()">🔝 Terisi Dulu</button>
+        <button class="add-prod-btn" id="btnMejaSort" style="width:auto;margin:0;padding:8px 13px;background:var(--panel-3);color:var(--muted)" onclick="toggleMejaSort()">🔝 Terisi Dulu</button>
+        <button class="add-prod-btn" style="width:auto;margin:0;padding:8px 13px;background:var(--navy)" onclick="printAllTableBills()">🖨️ Cetak Semua Meja</button>
         <button class="add-prod-btn" style="width:auto;margin:0;padding:8px 13px" onclick="addMeja()">＋ Meja</button>
         <button class="add-prod-btn hidden" id="floorEditBtn" style="width:auto;margin:0;padding:8px 13px;background:var(--accent)" onclick="toggleFloorEdit()">✏️ Edit Denah</button>
       </div>
@@ -1498,8 +1499,8 @@ function renderFloor(){
       <span class="ft-no">${tblLabel(t)}</span><span class="ft-sub">${sub}</span></div>`;
   }).join("");
   list.forEach(t=>{const el=document.getElementById("ft-"+t.no);if(!el)return;
-    el.addEventListener("pointerdown",e=>tilePointerDown(e,t.no));
-    el.addEventListener("click",()=>{if(!floorEdit)floorTap(t.no);});  // jalur cadangan: klik selalu bisa
+    if(floorEdit)el.addEventListener("pointerdown",e=>tilePointerDown(e,t.no));  // mode edit: butuh drag
+    else el.addEventListener("click",()=>floorTap(t.no));                        // mode normal: klik biasa, sama seperti tombol lain
   });
 }
 function tilePointerDown(e,no){
@@ -1523,7 +1524,6 @@ function docPointerUp(){
   if(!moved){if(floorEdit)selectFloorTile(no);else floorTap(no);}
 }
 function floorTap(no){
-  const _n=Date.now();if(_n-(window._lastFT||0)<400)return;window._lastFT=_n;
   const t=tbl(no);let h=`<h3 style="margin:0 0 4px">${tblLabel(t)}</h3>`;
   if(t.status==="terisi"){
     h+=`<div style="font-size:13px;color:#8a8276;margin-bottom:12px">${t.order.name||"Tanpa nama"} · ${rp(mejaTotal(t))}</div>`;
@@ -2542,6 +2542,37 @@ function printReceiptThermal(t){
   else if(t.open){const lbl=t.tab?'TERSIMPAN (TANPA MEJA)':'TERSIMPAN DI MEJA';b+=`<div class="row b"><span>TOTAL</span><span>${rp(t.total)}</span></div><hr><div class="c b">${lbl}</div><div class="c sm">Bayar saat selesai</div>`;}
   else{b+=`<div class="row b"><span>TOTAL</span><span>${rp(t.total)}</span></div><div class="row"><span>Bayar (${escTxt(t.method)})</span><span>${rp(t.cash)}</span></div><div class="row"><span>Kembali</span><span>${rp(t.kembalian)}</span></div><hr><div class="sm">No: ${escTxt(t.no)}</div><div class="c">Terima Kasih :)</div>`;}
   openThermal(b);
+}
+function billBody(t){
+  let b=`<div class="c"><div class="big">${(typeof shopName==="function"?shopName():"3 RAKAN KUPI").toUpperCase()}</div><div class="sm">TAGIHAN SEMENTARA</div></div><hr>`;
+  b+=`<div class="sm">${fmtFull(new Date())}</div><div class="sm">Meja: ${escTxt(labelByNo(t.no))}</div>`;
+  if(t.order.name)b+=`<div class="sm">Nama: ${escTxt(t.order.name)}</div>`;
+  b+=`<hr>`;
+  t.order.items.forEach(it=>{b+=`<div>${escTxt(it.name)}</div><div class="row sm"><span>${it.qty} x ${rp(it.price)}</span><span>${rp(it.qty*it.price)}</span></div>`;});
+  b+=`<hr><div class="row b"><span>TOTAL</span><span>${rp(mejaTotal(t))}</span></div><hr><div class="c b">BELUM DIBAYAR</div><div class="c sm">Mohon menuju kasir 🙏</div>`;
+  return b;
+}
+function printAllTableBills(){
+  const occ=mejaOnly().filter(t=>t.status==="terisi"&&t.order&&t.order.items&&t.order.items.length);
+  if(!occ.length){toast("Tidak ada meja yang terisi");return;}
+  if(!confirm("Cetak tagihan untuk "+occ.length+" meja terisi sekaligus?"))return;
+  const bodies=occ.map(billBody);
+  if(printMode==="rawbt"){
+    rawbtPrint(bodies.map(b=>htmlToText(b,32)).join(""));
+  }else{
+    const doc=`<html><head><meta charset="utf-8"><style>
+      @page{size:58mm auto;margin:0;}*{margin:0;padding:0;box-sizing:border-box;}
+      body{width:58mm;font-family:'Courier New',monospace;font-size:11px;line-height:1.45;color:#000;}
+      .bill{padding:3mm 2.5mm;page-break-after:always;}
+      .c{text-align:center;}.b{font-weight:bold;}.big{font-size:14px;font-weight:bold;}
+      .row{display:flex;justify-content:space-between;gap:6px;}.row span:last-child{white-space:nowrap;}
+      hr{border:none;border-top:1px dashed #000;margin:5px 0;}.sm{font-size:10px;}
+      </style></head><body>${bodies.map(b=>`<div class="bill">${b}</div>`).join("")}<script>window.onload=function(){window.print();setTimeout(function(){window.close();},400);};<\/script></body></html>`;
+    const w=window.open("","_blank","width=320,height=640");
+    if(!w){toast("Izinkan popup untuk mencetak");return;}
+    w.document.open();w.document.write(doc);w.document.close();
+  }
+  toast("🖨️ Mencetak tagihan "+occ.length+" meja...");
 }
 function printZReport(z){
   if(!z){toast("Belum ada data tutup kas");return;}
