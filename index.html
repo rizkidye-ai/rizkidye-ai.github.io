@@ -235,7 +235,8 @@
   .sheet-body{padding:16px 18px;overflow-y:auto;color:var(--txt);}
 
   /* ===== DENAH / MEJA GRID ===== */
-  .meja-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+  .meja-toolbar{display:flex;flex-direction:column;gap:10px;margin-bottom:12px;}
+  .meja-toolbar .mt-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .seg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;}
   .seg-b{padding:7px 14px;background:var(--bg-2);font-weight:600;font-size:13px;color:var(--muted);}
   .seg-b.on{background:var(--amber);color:#1A1206;}
@@ -590,12 +591,16 @@
     <header><h3>🍽️ Denah Meja</h3><button onclick="closeOverlay('mejaOverlay')">✕</button></header>
     <div class="sheet-body">
       <div class="meja-toolbar">
-        <div class="seg"><button id="mv-denah" class="seg-b on" onclick="setMejaView('denah')">Denah</button><button id="mv-daftar" class="seg-b" onclick="setMejaView('daftar')">Daftar</button><button id="mv-tab" class="seg-b" onclick="setMejaView('tab')">Tanpa Meja</button></div>
-        <div style="flex:1;font-size:12.5px;color:#7c7263" id="mejaSummaryText"></div>
-        <button class="add-prod-btn" id="btnMejaSort" style="width:auto;margin:0;padding:8px 13px;background:var(--panel-3);color:var(--muted)" onclick="toggleMejaSort()">🔝 Terisi Dulu</button>
-        <button class="add-prod-btn" style="width:auto;margin:0;padding:8px 13px;background:var(--navy)" onclick="printAllTableBills()">🖨️ Cetak Semua Meja</button>
-        <button class="add-prod-btn" style="width:auto;margin:0;padding:8px 13px" onclick="addMeja()">＋ Meja</button>
-        <button class="add-prod-btn hidden" id="floorEditBtn" style="width:auto;margin:0;padding:8px 13px;background:var(--accent)" onclick="toggleFloorEdit()">✏️ Edit Denah</button>
+        <div class="mt-row">
+          <div class="seg"><button id="mv-denah" class="seg-b on" onclick="setMejaView('denah')">Denah</button><button id="mv-daftar" class="seg-b" onclick="setMejaView('daftar')">Daftar</button><button id="mv-tab" class="seg-b" onclick="setMejaView('tab')">Tanpa Meja</button></div>
+          <div style="flex:1;min-width:140px;font-size:12.5px;color:var(--muted)" id="mejaSummaryText"></div>
+        </div>
+        <div class="mt-row">
+          <button class="add-prod-btn" id="btnMejaSort" style="width:auto;margin:0;padding:8px 13px;background:var(--panel-3);color:var(--muted)" onclick="toggleMejaSort()">🔝 Terisi Dulu</button>
+          <button class="add-prod-btn" style="width:auto;margin:0;padding:8px 13px;background:var(--navy)" onclick="printAllTableBills()">🖨️ Cetak Semua Meja</button>
+          <button class="add-prod-btn" style="width:auto;margin:0;padding:8px 13px" onclick="addMeja()">＋ Meja</button>
+          <button class="add-prod-btn hidden" id="floorEditBtn" style="width:auto;margin:0;padding:8px 13px;background:var(--accent)" onclick="toggleFloorEdit()">✏️ Edit Denah</button>
+        </div>
       </div>
       <div id="mejaDenah"><div class="floor" id="mejaFloor"></div><div class="floor-hint" id="floorHint"></div></div>
       <div class="meja-grid hidden" id="mejaGrid"></div>
