@@ -542,6 +542,23 @@ const API = {
     return { no:no, amount:amount, products: await getProductsList() };
   },
 
+  // Batalkan transaksi SALAH INPUT / DOBEL — beda dengan refund: tidak ada uang yang
+  // "keluar dari laci" (karena memang tidak pernah benar-benar diterima), jadi transaksi
+  // dihapus total, bukan dibuatkan entri minus baru. Khusus Admin/Owner.
+  async voidSale(token, payload){
+    const u = requireUser(token);
+    if (!isAdminRole(u.role)) throw new Error('Akses ditolak — khusus Admin/Owner.');
+    const { data: orig } = await db.from('sales').select('*').eq('no', String(payload.saleNo)).maybeSingle();
+    if (!orig) throw new Error('Transaksi tidak ditemukan.');
+    if (Number(orig.total) < 0) throw new Error('Ini sudah transaksi refund, tidak perlu dibatalkan lagi.');
+    if (String(orig.table) === 'HUTANG') throw new Error('Ini pelunasan hutang — batalkan lewat menu Hutang → "Batal Lunas".');
+    const items = orig.items || [];
+    if (payload.returnStock !== false && items.length)
+      await applyStock([], items.map(it=>({id:it.id,qty:it.qty})), 'Void '+orig.no+(payload.reason?(' — '+payload.reason):''), u.name);
+    need(( await db.from('sales').delete().eq('no', String(orig.no)) ).error);
+    return { products: await getProductsList() };
+  },
+
   /* ================= INVENTORY ================= */
 
   async restock(token, id, qty){

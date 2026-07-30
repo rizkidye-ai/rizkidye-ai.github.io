@@ -1370,6 +1370,12 @@ async function checkout(){
     if(method==="Tunai"&&cash<tot){toast("Uang masuk kurang dari total");return;}
     const fromTable=cartMode==="edit"?editingTable:null;
     const items=snapItems(),sub=subtotal(),disc=discountAmount(),cust=document.getElementById("custName").value.trim();
+    // cek dobel-input: transaksi identik baru saja diproses beberapa saat lalu?
+    const chkSig=items.map(it=>it.id+'x'+it.qty).sort().join(',');
+    if(window._lastCheckoutSig && window._lastCheckoutSig.sig===chkSig && window._lastCheckoutSig.total===tot && (Date.now()-window._lastCheckoutSig.time)<180000){
+      const detik=Math.round((Date.now()-window._lastCheckoutSig.time)/1000);
+      if(!confirm("⚠️ Transaksi PERSIS SAMA baru saja kamu proses "+detik+" detik lalu ("+window._lastCheckoutSig.no+").\n\nYakin ini BUKAN dobel input? Kalau customer memang pesan lagi barang yang sama, tekan OK untuk lanjut bayar."))return;
+    }
     const backup={cart:cart.map(c=>({id:c.id,qty:c.qty}))}; // cadangan kalau gagal
     // >>> STRUK MUNCUL INSTAN — kasir tidak menunggu server
     const myReceipt={no:"⏳ memproses…",method:methodLabel,cash,kembalian:Math.max(0,cash-tot),items,sub,disc,total:tot,kasir:state.user.name,date:new Date(),meja:fromTable,cust};
@@ -1380,6 +1386,7 @@ async function checkout(){
       .then(r=>{
         applyResult(r);
         myReceipt.no=r.no;
+        window._lastCheckoutSig={sig:chkSig,total:tot,time:Date.now(),no:r.no};
         if(lastReceipt===myReceipt && isOpen("receiptOverlay")) showReceipt(myReceipt); // perbarui nomor struk
         toast("✅ Lunas · "+r.no+(fromTable?" (Meja "+fromTable+")":""));
       })
@@ -2375,20 +2382,23 @@ function renderHistory(){
     groups[gIdx[k]].items.push({s,i});
   });
   const today=ymd(new Date()),yd=new Date();yd.setDate(yd.getDate()-1);const yesterday=ymd(yd);
+  const isAdm=isAdmin();
   box.innerHTML=groups.map(g=>{
     const label=g.key===today?"Hari ini":(g.key===yesterday?"Kemarin":idDate(new Date(g.key+"T00:00:00")));
     const tot=g.items.reduce((sum,x)=>sum+Number(x.s.total),0);
     const rows=g.items.map(({s,i})=>{
       const isRef=Number(s.total)<0||String(s.table)==="REFUND";
+      const isHutang=String(s.table)==="HUTANG";
       const n=s.items.reduce((a,it)=>a+Math.abs(Number(it.qty)),0);
-      const where=isRef?"↩️ REFUND":(!s.table?"Tanpa meja":(String(s.table)==="HUTANG"?"Pelunasan hutang":labelByNo(s.table)));
+      const where=isRef?"↩️ REFUND":(!s.table?"Tanpa meja":(isHutang?"Pelunasan hutang":labelByNo(s.table)));
       const refBadge=s.refunded==='full'?' · <span class="role-badge" style="background:var(--void);color:#fff">✅ Sudah direfund penuh</span>'
         :(s.refunded==='partial'?' · <span class="role-badge" style="background:var(--amber-dim);color:#fff">↩️ Direfund sebagian</span>':'');
       const refundBtn=(isRef||s.refunded==='full')?'':`<button class="pr-row-btn" style="color:var(--alert);border-color:#f4c2c2" onclick="openRefund(${i})">↩️ Refund</button>`;
+      const voidBtn=(isRef||isHutang||!isAdm)?'':`<button class="pr-row-btn" style="color:var(--muted)" onclick="voidSaleUI(${i})" title="Untuk salah input / dobel, bukan customer minta uang kembali">🗑️ Batalkan</button>`;
       return `<div class="inv-row"><div class="ir-name"><b>${s.no}</b> <span class="ir-cat">${fmtHM(s.datetime)} · ${s.kasir}</span><div class="ir-cat">${where} · ${s.method} · ${n} item${refBadge}</div></div>
         <div class="pr-price" style="${isRef?'color:#e03131':''}">${rp(s.total)}</div>
         <button class="pr-row-btn" onclick="reprint(${i})">🧾 Struk</button>
-        ${refundBtn}</div>`;
+        ${refundBtn}${voidBtn}</div>`;
     }).join("");
     return `<h4 class="rpt-sec" style="margin:16px 0 6px;display:flex;justify-content:space-between;align-items:baseline;gap:10px">
       <span>📅 ${label} <span style="font-weight:400;color:var(--muted)">(${g.key}) · ${g.items.length} transaksi</span></span>
@@ -2422,6 +2432,20 @@ function reprint(i){
     return;
   }
   showReceipt({no:s.no,method:s.method,cash:s.cash,kembalian:s.kembalian,items:s.items,sub:s.sub,disc:s.disc,total:s.total,kasir:s.kasir,date:new Date(s.datetime),meja:(String(s.table)==="HUTANG"||!s.table)?null:s.table,cust:''});
+}
+async function voidSaleUI(i){
+  const s=histRendered[i];if(!s)return;
+  if(!isAdmin()){toast("Khusus Admin/Owner");return;}
+  const reason=prompt("Batalkan transaksi "+s.no+" ("+rp(s.total)+")?\n\nPakai ini kalau SALAH INPUT / DOBEL — transaksi akan dihapus total, TIDAK dicatat sebagai uang keluar.\nKalau customer beneran minta uang kembali, pakai tombol Refund, bukan ini.\n\nAlasan pembatalan:","");
+  if(reason===null)return;
+  if(!reason.trim()){toast("Alasan wajib diisi");return;}
+  if(!confirm("Yakin batalkan "+s.no+"? Transaksi akan dihapus PERMANEN dari riwayat & laporan."))return;
+  try{
+    const r=await run("voidSale",state.token,{saleNo:s.no,reason:reason.trim(),returnStock:true});
+    if(r.products)state.products=r.products;
+    renderAll();await loadHistory();
+    toast("🗑️ Transaksi "+s.no+" dibatalkan");
+  }catch(e){}
 }
 
 /* ---------- REFUND ---------- */
