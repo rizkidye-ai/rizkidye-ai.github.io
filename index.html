@@ -210,6 +210,9 @@
   .paytype{display:flex;gap:8px;margin:12px 0 10px;flex-wrap:wrap;}
   .paytype button{flex:1;min-width:80px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg-2);font-weight:600;font-size:13px;color:var(--muted);}
   .paytype button.on{border-color:rgba(240,169,58,.45);background:rgba(240,169,58,.08);color:var(--amber-soft);}
+  .quick-cash{display:flex;gap:7px;margin:-2px 0 10px;flex-wrap:wrap;}
+  .quick-cash button{flex:1;min-width:76px;padding:8px 6px;border-radius:9px;border:1px solid var(--line);background:var(--bg-2);color:var(--muted);font-size:12px;font-weight:600;font-family:var(--mono);}
+  .quick-cash button:hover{border-color:rgba(240,169,58,.4);color:var(--amber-soft);}
   .field{margin-bottom:9px;}
   .field label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:7px;font-weight:600;}
   .field input,.field select{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:10px;font-size:14.5px;outline:none;background:var(--bg);color:var(--txt);font-family:var(--disp);}
@@ -539,6 +542,12 @@
             <select id="payMethod" onchange="payMethodChanged()"><option>Tunai</option><option>QRIS</option><option>E-Wallet</option><option>Transfer Bank</option><option>Campur (Tunai+QRIS)</option></select></div>
           <div class="field hidden" id="mixRow"><label>Tunai diterima (sisanya QRIS)</label><input id="mixCash" type="number" min="0" placeholder="cth: 2000" oninput="mixInfo()"><div id="mixHint" style="font-size:12px;color:#6f5836;margin-top:4px"></div></div>
           <div class="field"><label>Uang Masuk</label><input id="cashIn" type="number" min="0" placeholder="0" oninput="recalc()"></div>
+          <div class="quick-cash">
+            <button type="button" onclick="quickCash('cashIn','total','pas')">Uang Pas</button>
+            <button type="button" onclick="quickCash('cashIn','total',20000)">Rp 20.000</button>
+            <button type="button" onclick="quickCash('cashIn','total',50000)">Rp 50.000</button>
+            <button type="button" onclick="quickCash('cashIn','total',100000)">Rp 100.000</button>
+          </div>
           <div class="line"><span>Kembalian</span><span id="kembalian" class="kembalian">Rp 0</span></div>
         </div>
 
@@ -652,6 +661,12 @@
         <select id="splitMethod" onchange="splitMixChanged()"><option>Tunai</option><option>QRIS</option><option>E-Wallet</option><option>Transfer Bank</option><option>Campur (Tunai+QRIS)</option></select></div>
       <div class="field hidden" id="splitMixRow"><label>Tunai diterima (sisanya QRIS)</label><input id="splitMixCash" type="number" min="0" oninput="splitMixInfo()"><div id="splitMixHint" style="font-size:12px;color:#6f5836;margin-top:4px"></div></div>
       <div class="field"><label>Uang Masuk</label><input id="splitCash" type="number" min="0" placeholder="0" oninput="renderSplitTotals()"></div>
+      <div class="quick-cash">
+        <button type="button" onclick="quickCash('splitCash','splitTotalVal','pas')">Uang Pas</button>
+        <button type="button" onclick="quickCash('splitCash','splitTotalVal',20000)">Rp 20.000</button>
+        <button type="button" onclick="quickCash('splitCash','splitTotalVal',50000)">Rp 50.000</button>
+        <button type="button" onclick="quickCash('splitCash','splitTotalVal',100000)">Rp 100.000</button>
+      </div>
       <div class="line"><span>Kembalian</span><span id="splitKembali" class="kembalian">Rp 0</span></div>
       <div class="actions" style="margin-top:12px">
         <button class="btn" style="background:var(--coffee)" onclick="splitSelectAll()">Pilih Semua</button>
@@ -1222,6 +1237,12 @@ function renderCart(){
   else{box.innerHTML=cart.map(c=>{const p=prod(c.id);return `<div class="citem"><div class="ci-name">${p.name}<div class="ci-sub">${rp(p.price)}</div></div><div class="qty"><button onclick="changeQty('${c.id}',-1)">−</button><span>${c.qty}</span><button onclick="changeQty('${c.id}',1)">+</button></div><div class="ci-price">${rp(p.price*c.qty)}</div><button class="ci-del" onclick="removeItem('${c.id}')">🗑</button></div>`;}).join("");}
   recalc();
 }
+function quickCash(inputId,totalFn,amount){
+  const tot=window[totalFn]();
+  const el=document.getElementById(inputId);
+  el.value=amount==="pas"?tot:amount;
+  el.dispatchEvent(new Event("input"));
+}
 function recalc(){
   const sub=subtotal(),disc=discountAmount(),tot=total();
   document.getElementById("sumSub").textContent=rp(sub);
@@ -1723,7 +1744,7 @@ function splitExtraVal(){return Object.keys(splitExtra).reduce((s,id)=>{const p=
 function splitTotalVal(){return splitItems().reduce((s,it)=>s+(splitSel[it.id]||0)*it.price,0)+splitExtraVal();}
 function splitMixChanged(){const mix=document.getElementById("splitMethod").value.indexOf("Campur")===0;document.getElementById("splitMixRow").classList.toggle("hidden",!mix);if(mix)splitMixInfo();}
 function splitMixInfo(){const tot=splitTotalVal();const c=parseFloat(document.getElementById("splitMixCash").value)||0;document.getElementById("splitMixHint").textContent=(c>0&&c<tot)?("Tunai "+rp(c)+" + QRIS "+rp(tot-c)):(c>=tot?"⚠️ Tunai ≥ total — pakai Tunai saja":"Isi jumlah tunai yang diterima");}
-function toggleSplitAdd(){const p=document.getElementById("splitAddPanel");p.classList.toggle("hidden");if(!p.classList.contains("hidden")){renderSplitAdd();document.getElementById("splitAddSearch").focus();}}
+function toggleSplitAdd(){const p=document.getElementById("splitAddPanel");p.classList.toggle("hidden");if(!p.classList.contains("hidden")){renderSplitAdd();}}
 function renderSplitAdd(){
   const q=(document.getElementById("splitAddSearch").value||"").toLowerCase();
   const list=state.products.filter(p=>p.active&&p.mitra&&p.name.toLowerCase().includes(q)).slice(0,30);
