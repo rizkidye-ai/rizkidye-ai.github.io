@@ -473,7 +473,7 @@ const API = {
     requireUser(token);
     const { data, error } = await db.from('sales').select('*');
     need(error);
-    return (data||[]).filter(s => s.datetime).map(s => ({
+    const list = (data||[]).filter(s => s.datetime).map(s => ({
       no:String(s.no), datetime:new Date(s.datetime).getTime(), kasir:s.kasir||'', table:s.table||'',
       method:(function(){ if(String(s.method)==='Campur' && s.mix){ const ks=Object.keys(s.mix);
         if(ks.length) return 'Campur: '+ks.map(k=>k+' '+(Number(s.mix[k])||0).toLocaleString('id-ID')).join(' + '); }
@@ -482,6 +482,24 @@ const API = {
       cash:Number(s.cash)||0, kembalian:Number(s.kembalian)||0, items: s.items||[]
     })).filter(s => { const k=bizYmd(s.datetime); return k>=fromYmd && k<=toYmd; })
       .sort((a,b)=> b.datetime-a.datetime);
+
+    // tandai transaksi yang sudah pernah di-refund, biar kelihatan di Riwayat
+    const nos = list.filter(s=>s.total>=0).map(s=>s.no);
+    if (nos.length){
+      const { data: refs } = await db.from('refunds').select('orig_no,items').in('orig_no', nos);
+      const refundedQty = {};
+      (refs||[]).forEach(r => (r.items||[]).forEach(it => {
+        const key = String(r.orig_no)+'|'+String(it.id);
+        refundedQty[key] = (refundedQty[key]||0) + Number(it.qty);
+      }));
+      list.forEach(s => {
+        if (s.total < 0) return;
+        const bought = (s.items||[]).reduce((a,it)=>a+Number(it.qty),0);
+        const refunded = (s.items||[]).reduce((a,it)=>a+(refundedQty[s.no+'|'+String(it.id)]||0),0);
+        if (refunded > 0) s.refunded = refunded >= bought ? 'full' : 'partial';
+      });
+    }
+    return list;
   },
 
   async processRefund(token, payload){
@@ -492,6 +510,24 @@ const API = {
     if (String(orig.table) === 'HUTANG') throw new Error('Ini pelunasan hutang. Batalkan lewat menu Hutang → tombol "Batal Lunas".');
     const items = (payload.items||[]).filter(it => Number(it.qty) > 0);
     if (!items.length) throw new Error('Pilih item yang akan di-refund.');
+
+    // cegah refund melebihi jumlah yang benar-benar dibeli (termasuk refund berkali-kali atas transaksi yang sama)
+    const { data: prevRefunds } = await db.from('refunds').select('items').eq('orig_no', String(orig.no));
+    const alreadyRefunded = {};
+    (prevRefunds||[]).forEach(r => (r.items||[]).forEach(it => {
+      alreadyRefunded[String(it.id)] = (alreadyRefunded[String(it.id)]||0) + Number(it.qty);
+    }));
+    const boughtQty = {};
+    (orig.items||[]).forEach(it => { boughtQty[String(it.id)] = (boughtQty[String(it.id)]||0) + Number(it.qty); });
+    for (const it of items) {
+      const bought = boughtQty[String(it.id)] || 0;
+      const already = alreadyRefunded[String(it.id)] || 0;
+      const remaining = bought - already;
+      if (Number(it.qty) > remaining) {
+        throw new Error('"'+it.name+'" sudah di-refund '+already+' dari '+bought+' yang dibeli — sisa maksimal bisa direfund: '+Math.max(0,remaining)+'.');
+      }
+    }
+
     const amount = items.reduce((a,it)=>a+Number(it.qty)*Number(it.price),0);
     if (payload.returnStock) await applyStock([], items.map(it=>({id:it.id,qty:it.qty})), 'Refund '+orig.no, u.name);
     let negMix = null;

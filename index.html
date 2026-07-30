@@ -2382,10 +2382,13 @@ function renderHistory(){
       const isRef=Number(s.total)<0||String(s.table)==="REFUND";
       const n=s.items.reduce((a,it)=>a+Math.abs(Number(it.qty)),0);
       const where=isRef?"↩️ REFUND":(!s.table?"Tanpa meja":(String(s.table)==="HUTANG"?"Pelunasan hutang":labelByNo(s.table)));
-      return `<div class="inv-row"><div class="ir-name"><b>${s.no}</b> <span class="ir-cat">${fmtHM(s.datetime)} · ${s.kasir}</span><div class="ir-cat">${where} · ${s.method} · ${n} item</div></div>
+      const refBadge=s.refunded==='full'?' · <span class="role-badge" style="background:var(--void);color:#fff">✅ Sudah direfund penuh</span>'
+        :(s.refunded==='partial'?' · <span class="role-badge" style="background:var(--amber-dim);color:#fff">↩️ Direfund sebagian</span>':'');
+      const refundBtn=(isRef||s.refunded==='full')?'':`<button class="pr-row-btn" style="color:var(--alert);border-color:#f4c2c2" onclick="openRefund(${i})">↩️ Refund</button>`;
+      return `<div class="inv-row"><div class="ir-name"><b>${s.no}</b> <span class="ir-cat">${fmtHM(s.datetime)} · ${s.kasir}</span><div class="ir-cat">${where} · ${s.method} · ${n} item${refBadge}</div></div>
         <div class="pr-price" style="${isRef?'color:#e03131':''}">${rp(s.total)}</div>
         <button class="pr-row-btn" onclick="reprint(${i})">🧾 Struk</button>
-        ${isRef?'':`<button class="pr-row-btn" style="color:var(--alert);border-color:#f4c2c2" onclick="openRefund(${i})">↩️ Refund</button>`}</div>`;
+        ${refundBtn}</div>`;
     }).join("");
     return `<h4 class="rpt-sec" style="margin:16px 0 6px;display:flex;justify-content:space-between;align-items:baseline;gap:10px">
       <span>📅 ${label} <span style="font-weight:400;color:var(--muted)">(${g.key}) · ${g.items.length} transaksi</span></span>
