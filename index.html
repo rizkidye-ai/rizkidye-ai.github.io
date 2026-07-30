@@ -755,6 +755,7 @@
       <div class="rpt-actions" id="rptActionsBlock">
         <button class="rpt-exp xls" onclick="exportExcel()">⬇️ Excel</button>
         <button class="rpt-exp pdf" onclick="exportPDF()">🖨️ Cetak / PDF</button>
+        <button class="rpt-exp" style="background:var(--navy)" onclick="downloadReportPDF()">⬇️ Download PDF</button>
       </div>
       <div id="reportBody"></div>
       <div id="neracaView" class="hidden"></div>
@@ -1098,6 +1099,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <script src="api.js"></script>
 <script>
 /* ============ 3 RAKAN KUPI — CLIENT (Apps Script web app) ============ */
@@ -2310,6 +2313,80 @@ function exportPDF(){
   const doc=`<html><head><meta charset="utf-8"><title>Laporan 3 Rakan Kupi</title><style>${css}</style></head><body>${b}<script>window.onload=function(){setTimeout(function(){window.print();},300);}<\/script></body></html>`;
   const w=window.open("","_blank","width=820,height=900");if(!w){toast("Popup diblokir — izinkan popup untuk cetak/PDF");return;}
   w.document.open();w.document.write(doc);w.document.close();
+}
+function pdfSection(doc,y,title,head,rows,opts){
+  if(y>760){doc.addPage();y=44;}
+  if(title){doc.setFont("helvetica","bold");doc.setFontSize(11.5);doc.setTextColor(111,74,46);doc.text(title,40,y);y+=8;}
+  doc.autoTable(Object.assign({startY:y,margin:{left:40,right:40},styles:{fontSize:8.5,cellPadding:4,textColor:[30,25,20]},
+    headStyles:{fillColor:[111,74,46],textColor:255,fontStyle:"bold"},alternateRowStyles:{fillColor:[250,247,242]},theme:"grid"},
+    head?{head:[head]}:{},{body:rows},opts||{}));
+  return doc.lastAutoTable.finalY+18;
+}
+function downloadReportPDF(){
+  if(!lastReport){toast("Belum ada data laporan");return;}
+  if(!(window.jspdf&&window.jspdf.jsPDF)){toast("Library PDF belum siap, coba lagi sebentar");return;}
+  const d=lastReport,net=d.omzet-d.pengeluaran;
+  const { jsPDF }=window.jspdf;
+  const doc=new jsPDF({unit:"pt",format:"a4"});
+  let y=46;
+  doc.setFont("helvetica","bold");doc.setFontSize(17);doc.setTextColor(43,30,21);
+  doc.text((typeof shopName==="function"?shopName():"3 Rakan Kupi"),40,y);y+=18;
+  doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(120);
+  doc.text("Laporan Laba Rugi · Periode: "+rangeText()+" · dicetak "+idDate(new Date()),40,y);y+=22;
+
+  y=pdfSection(doc,y,null,["Ringkasan",""],[
+    ["Omzet",rp(d.omzet)],["Transaksi",String(d.count)],["Rata-rata",rp(d.avg)],["Diskon",rp(d.disc)],
+    ["Pemasukan",rp(d.omzet)],["Pengeluaran",rp(d.pengeluaran)],["Cashflow Bersih",rp(net)],
+  ],{columnStyles:{1:{halign:"right"}}});
+
+  const _P=d.pnl||{revMinuman:0,revMakanan:0,disc:0,netSales:d.omzet,hpp:0,labaKotor:d.omzet,opCats:{},totalOp:d.pengeluaran,labaBersih:net};
+  const _pok=Object.keys(_P.opCats).sort((a,b)=>_P.opCats[b]-_P.opCats[a]);
+  const plRows=[
+    ["Penjualan Minuman",rp(_P.revMinuman)],["Penjualan Makanan",rp(_P.revMakanan)],
+  ];
+  if(_P.disc>0)plRows.push(["Diskon penjualan","("+rp(_P.disc)+")"]);
+  plRows.push(["Total Pendapatan Bersih",rp(_P.netSales)]);
+  plRows.push(["HPP — Belanja Stok","("+rp(_P.hpp)+")"]);
+  plRows.push(["LABA KOTOR",rp(_P.labaKotor)]);
+  if(_pok.length)_pok.forEach(c=>plRows.push([c,"("+rp(_P.opCats[c])+")"]));else plRows.push(["—","Rp 0"]);
+  plRows.push(["Total Beban Operasional","("+rp(_P.totalOp)+")"]);
+  plRows.push(["LABA BERSIH",rp(_P.labaBersih)]);
+  y=pdfSection(doc,y,"Laporan Laba Rugi",["Uraian","Jumlah"],plRows,{columnStyles:{1:{halign:"right"}}});
+
+  const ecp=d.expByCat||{};
+  if(Object.keys(ecp).length)y=pdfSection(doc,y,"Rincian Pengeluaran",["Kategori","Jumlah"],
+    Object.keys(ecp).map(c=>[c,rp(ecp[c])]),{columnStyles:{1:{halign:"right"}}});
+
+  y=pdfSection(doc,y,"Metode Pembayaran",["Metode","Jumlah"],
+    Object.keys(d.pay).map(m=>[m,rp(d.pay[m])]),{columnStyles:{1:{halign:"right"}}});
+
+  const _op=(state.debts||[]).filter(x=>!x.paid);
+  if(_op.length)y=pdfSection(doc,y,"Piutang Belum Tertagih",["Nama","HP","Sejak","Jumlah"],
+    _op.map(x=>[x.name,x.phone||"",x.datetime?idDate(x.datetime):"",rp(x.total)]),{columnStyles:{3:{halign:"right"}}});
+
+  y=pdfSection(doc,y,"Produk Terlaris",["Produk","Terjual","Omzet"],
+    d.top.slice(0,15).map(p=>[p.name,String(p.qty),rp(p.rev)]),{columnStyles:{1:{halign:"right"},2:{halign:"right"}}});
+
+  const _slP=d.slow||[];
+  if(_slP.length)y=pdfSection(doc,y,"Paling Tidak Laris",["Produk","Terjual","Omzet"],
+    _slP.map(p=>[p.name,String(p.qty),rp(p.rev)]),{columnStyles:{1:{halign:"right"},2:{halign:"right"}}});
+
+  const _mlP=d.mitraList||[];
+  if(_mlP.length)y=pdfSection(doc,y,"Titipan Mitra (bukan pendapatan)",["Mitra","Nilai","Dibayar (bulat)"],
+    _mlP.map(m=>[m.name,rp(m.total),rp(m.pay)]),{columnStyles:{1:{halign:"right"},2:{halign:"right"}}});
+
+  y=pdfSection(doc,y,"Rekap Harian",["Tanggal","Transaksi","Omzet"],
+    d.daily.map(x=>[idDate(new Date(x.d+"T00:00:00")),String(x.count),rp(x.omzet)]),{columnStyles:{1:{halign:"right"},2:{halign:"right"}}});
+
+  y=pdfSection(doc,y,"Pendapatan per Bulan",["Bulan","Pemasukan","Pengeluaran","Bersih"],
+    d.months.map(m=>[monthLabel(m.k),rp(m.omzet),rp(m.exp),rp(m.omzet-m.exp)]),{columnStyles:{1:{halign:"right"},2:{halign:"right"},3:{halign:"right"}}});
+
+  const _bk=d.byKasir||[];
+  y=pdfSection(doc,y,"Penjualan per Kasir",["Kasir","Transaksi","Rata-rata","Omzet"],
+    _bk.map(k=>[k.name,String(k.count),rp(k.avg),rp(k.omzet)]),{columnStyles:{1:{halign:"right"},2:{halign:"right"},3:{halign:"right"}}});
+
+  doc.save("Laporan_3RakanKupi_"+ymd(rptFrom)+"_"+ymd(rptTo)+".pdf");
+  toast("⬇️ PDF diunduh");
 }
 
 /* ---------- NERACA (Balance Sheet) ---------- */
