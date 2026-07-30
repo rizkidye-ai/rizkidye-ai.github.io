@@ -269,8 +269,8 @@
   .floor.editing .ftable{cursor:grab;border-style:dashed;}
   .floor.editing .ftable:active{cursor:grabbing;box-shadow:0 8px 20px rgba(0,0,0,.5);}
   .floor-hint{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:8px;text-align:center;min-height:14px;}
-  .act-sheet-btn{display:block;width:100%;padding:13px;border-radius:12px;margin-bottom:8px;font-weight:600;font-size:14px;border:1px solid var(--line);background:var(--bg-2);color:var(--txt);}
-  .act-sheet-btn:hover{background:var(--panel-3);}
+  .act-sheet-btn{display:block;width:100%;padding:13px;border-radius:12px;margin-bottom:8px;font-weight:600;font-size:14px;border:1px solid rgba(62,110,160,.35);background:rgba(62,110,160,.14);color:#8EB8DE;}
+  .act-sheet-btn:hover{background:rgba(62,110,160,.26);border-color:rgba(62,110,160,.6);color:#fff;}
   #floorPropsBody label{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.8px;font-weight:600;color:var(--muted);display:block;margin-bottom:6px;}
   #floorPropsBody input,#floorPropsBody select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:var(--bg);color:var(--txt);}
   #floorPropsBody .ff{margin-bottom:10px;}
@@ -1557,22 +1557,22 @@ function docPointerUp(){
 function floorTap(no){
   const t=tbl(no);let h=`<h3 style="margin:0 0 4px">${tblLabel(t)}</h3>`;
   if(t.status==="terisi"){
-    h+=`<div style="font-size:13px;color:#8a8276;margin-bottom:12px">${t.order.name||"Tanpa nama"} · ${rp(mejaTotal(t))}</div>`;
+    h+=`<div style="font-size:13px;color:var(--muted);margin-bottom:12px">${t.order.name||"Tanpa nama"} · ${rp(mejaTotal(t))}</div>`;
     h+=`<button class="act-sheet-btn" onclick="actDo('open',${no})">✏️ Buka / Tambah Pesanan</button>`;
-    h+=`<button class="act-sheet-btn" style="background:#f1faf2;border-color:#bfe3c4" onclick="actDo('pay',${no})">💵 Bayar</button>`;
+    h+=`<button class="act-sheet-btn" onclick="actDo('pay',${no})">💵 Bayar</button>`;
     h+=`<button class="act-sheet-btn" onclick="actDo('split',${no})">✂️ Split Bill</button>`;
     h+=`<button class="act-sheet-btn" onclick="actDo('utang',${no})">📒 Jadikan Utang</button>`;
     h+=`<button class="act-sheet-btn" style="color:var(--alert)" onclick="actDo('kosong',${no})">Kosongkan</button>`;
   }else if(t.status==="reserved"){
-    h+=`<div style="font-size:13px;color:#8a8276;margin-bottom:12px">Ditandai penuh</div>`;
+    h+=`<div style="font-size:13px;color:var(--muted);margin-bottom:12px">Ditandai penuh</div>`;
     h+=`<button class="act-sheet-btn" onclick="actDo('open',${no})">Buka Pesanan</button>`;
     h+=`<button class="act-sheet-btn" onclick="actDo('tokosong',${no})">Tandai Kosong</button>`;
   }else{
-    h+=`<div style="font-size:13px;color:#8a8276;margin-bottom:12px">Meja kosong</div>`;
+    h+=`<div style="font-size:13px;color:var(--muted);margin-bottom:12px">Meja kosong</div>`;
     h+=`<button class="act-sheet-btn" onclick="actDo('open',${no})">Buka Pesanan</button>`;
     h+=`<button class="act-sheet-btn" onclick="actDo('topenuh',${no})">Tandai Penuh</button>`;
   }
-  h+=`<button class="act-sheet-btn" style="background:#f3f3f3" onclick="closeOverlay('tableActOverlay')">Batal</button>`;
+  h+=`<button class="act-sheet-btn" onclick="closeOverlay('tableActOverlay')">Batal</button>`;
   document.getElementById("tableActBody").innerHTML=h;
   document.getElementById("tableActOverlay").classList.remove("hidden");
 }
