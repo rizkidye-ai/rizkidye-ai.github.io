@@ -705,6 +705,7 @@
         </div>
       </div>
 
+      <div class="search-row" style="margin-bottom:10px"><input id="exSearch" type="text" placeholder="🔍 Cari keterangan / kategori / catatan..." oninput="renderExpenses()"></div>
       <div class="rpt-presets" style="margin-bottom:8px">
         <button class="rpt-p" id="ex-hari" onclick="setExpPreset('hari')">Hari Ini</button>
         <button class="rpt-p on" id="ex-bulan" onclick="setExpPreset('bulan')">Bulan Ini</button>
@@ -2100,17 +2101,19 @@ async function loadExpenses(){
 }
 function renderExpenses(){
   document.getElementById("exRangeLabel").textContent="📅 Periode: "+exRangeText();
-  const dHarian=exData.filter(e=>e.type!=="Bulanan"),dBulanan=exData.filter(e=>e.type==="Bulanan");
+  const q=(document.getElementById("exSearch").value||"").toLowerCase();
+  const list=q?exData.filter(e=>(e.name||"").toLowerCase().includes(q)||(e.cat||"").toLowerCase().includes(q)||(e.note||"").toLowerCase().includes(q)||(e.by||"").toLowerCase().includes(q)):exData;
+  const dHarian=list.filter(e=>e.type!=="Bulanan"),dBulanan=list.filter(e=>e.type==="Bulanan");
   const tH=dHarian.reduce((s,e)=>s+e.amount,0),tB=dBulanan.reduce((s,e)=>s+e.amount,0);
   document.getElementById("exSummary").innerHTML=`
     <div class="inv-stat"><div class="v" style="font-size:15px">${rp(tH)}</div><div class="l">Pengeluaran Harian (${dHarian.length})</div></div>
     <div class="inv-stat warn"><div class="v" style="font-size:15px">${rp(tB)}</div><div class="l">Belanja Bulanan (${dBulanan.length})</div></div>
     <div class="inv-stat bad"><div class="v" style="font-size:15px">${rp(tH+tB)}</div><div class="l">Total Semua</div></div>`;
-  const byCat={};exData.forEach(e=>byCat[e.cat]=(byCat[e.cat]||0)+e.amount);
+  const byCat={};list.forEach(e=>byCat[e.cat]=(byCat[e.cat]||0)+e.amount);
   const cats=Object.keys(byCat).sort((a,b)=>byCat[b]-byCat[a]);
   document.getElementById("exByCat").innerHTML=cats.length?(`<h4>Per Kategori</h4><table class="rpt-table">`+cats.map(c=>`<tr><td><span class="role-badge" style="background:${EXP_COLORS[c]||'#999'};color:#fff">${c}</span></td><td class="num">${rp(byCat[c])}</td></tr>`).join("")+`</table>`):"";
   const box=document.getElementById("exList");
-  if(!exData.length){box.innerHTML='<div style="text-align:center;color:#b3a999;padding:24px">Belum ada pengeluaran di periode ini.</div>';return;}
+  if(!list.length){box.innerHTML='<div style="text-align:center;color:#b3a999;padding:24px">'+(q?"Tidak ada pengeluaran yang cocok.":"Belum ada pengeluaran di periode ini.")+'</div>';return;}
   const rowH=e=>`
     <div class="inv-row">
       <div class="ir-name"><b>${e.name}</b> <span class="role-badge" style="background:${EXP_COLORS[e.cat]||'#999'};color:#fff">${e.cat}</span><div class="ir-cat">${idDate(e.date)}${e.note?' · '+e.note:''} · oleh ${e.by}</div></div>
