@@ -716,6 +716,7 @@
 
       <div class="inv-summary" id="exSummary" style="grid-template-columns:repeat(2,1fr)"></div>
       <div id="exByCat" class="rpt-sec"></div>
+      <div id="exDaily" class="rpt-sec"></div>
       <div id="exList"></div>
     </div>
   </div>
@@ -2112,6 +2113,11 @@ function renderExpenses(){
   const byCat={};list.forEach(e=>byCat[e.cat]=(byCat[e.cat]||0)+e.amount);
   const cats=Object.keys(byCat).sort((a,b)=>byCat[b]-byCat[a]);
   document.getElementById("exByCat").innerHTML=cats.length?(`<h4>Per Kategori</h4><table class="rpt-table">`+cats.map(c=>`<tr><td><span class="role-badge" style="background:${EXP_COLORS[c]||'#999'};color:#fff">${c}</span></td><td class="num">${rp(byCat[c])}</td></tr>`).join("")+`</table>`):"";
+  const byDay={};list.forEach(e=>{const k=ymd(e.date);(byDay[k]=byDay[k]||{count:0,amount:0});byDay[k].count++;byDay[k].amount+=e.amount;});
+  const days=Object.keys(byDay).sort((a,b)=>b.localeCompare(a));
+  document.getElementById("exDaily").innerHTML=days.length?(`<h4>Rekap Harian</h4><table class="rpt-table"><tr><th>Tanggal</th><th class="num">Jumlah</th><th class="num">Total</th></tr>`
+    +days.map(k=>`<tr><td>${idDate(new Date(k+"T00:00:00"))}</td><td class="num">${byDay[k].count}</td><td class="num">${rp(byDay[k].amount)}</td></tr>`).join("")
+    +`<tr><td><b>Rata-rata / hari</b></td><td class="num">${(list.length/days.length).toFixed(1)}</td><td class="num"><b>${rp((tH+tB)/days.length)}</b></td></tr></table>`):"";
   const box=document.getElementById("exList");
   if(!list.length){box.innerHTML='<div style="text-align:center;color:#b3a999;padding:24px">'+(q?"Tidak ada pengeluaran yang cocok.":"Belum ada pengeluaran di periode ini.")+'</div>';return;}
   const rowH=e=>`
