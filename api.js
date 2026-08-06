@@ -75,11 +75,14 @@ async function getShop(){
   need(error);
   const s = {}; (data||[]).forEach(r => s[r.key] = r.value);
   CUTOFF = Number(s['biz_cutoff']) || 7;
+  let customExpenseCats = [];
+  try { customExpenseCats = JSON.parse(s['custom_expense_cats']||'[]'); if(!Array.isArray(customExpenseCats)) customExpenseCats=[]; } catch(e){ customExpenseCats=[]; }
   return { name:  String(s['cafe'] || '3 Rakan Kupi'),
            addr:  String(s['alamat'] || ''),
            footer:String(s['struk_footer'] || 'Terima Kasih! 🙏'),
            cutoff: CUTOFF,
-           logo:  String(s['shop_logo'] || '') };
+           logo:  String(s['shop_logo'] || ''),
+           customExpenseCats: customExpenseCats };
 }
 
 
@@ -922,6 +925,15 @@ const API = {
     need(( await db.from('settings').upsert(rows) ).error);
     CUTOFF = c;
     return await getShop();
+  },
+
+  async saveCustomExpenseCats(token, cats){
+    const u = requireUser(token);
+    if (!isAdminRole(u.role)) throw new Error('Akses ditolak — khusus Admin/Owner.');
+    const arr = (Array.isArray(cats)?cats:[]).map(c=>String(c).trim()).filter(Boolean)
+      .filter((c,i,a)=>a.indexOf(c)===i);
+    need(( await db.from('settings').upsert([{ key:'custom_expense_cats', value: JSON.stringify(arr) }]) ).error);
+    return { customExpenseCats: arr };
   },
 
   /* ================= STAFF ================= */

@@ -710,12 +710,20 @@
     <div class="sheet-body">
       <div class="user-form" style="border-color:var(--coffee)">
         <div class="grid2">
-          <div class="ff"><label>Kategori</label><select id="exCat" onchange="expCatChanged()">
-            <option>Belanja Stok</option><option>Operasional</option><option>Gaji Karyawan</option>
-            <option>Uang Makan Karyawan</option><option>Galon Air &amp; Gas</option>
-            <option>Sewa Tempat</option><option>Listrik &amp; Air</option><option>Tabungan Gas</option><option>Tabungan Listrik</option><option>Tabungan</option><option>Lain-lain</option>
-            <option value="__custom__">✏️ Kategori lain (tulis sendiri)</option></select>
-            <input id="exCatCustom" class="hidden" placeholder="Nama kategori baru, cth: Parkir" style="margin-top:6px"></div>
+          <div class="ff"><label>Kategori <a href="javascript:void(0)" onclick="toggleCatManage()" style="font-size:11px;font-weight:500;margin-left:6px">⚙️ Kelola</a></label>
+            <select id="exCat" onchange="expCatChanged()">
+              <option>Belanja Stok</option><option>Operasional</option><option>Gaji Karyawan</option>
+              <option>Uang Makan Karyawan</option><option>Galon Air</option><option>Gas</option>
+              <option>Sewa Tempat</option><option>Listrik &amp; Air</option><option>Tabungan Gas</option><option>Tabungan Listrik</option><option>Tabungan</option><option>Lain-lain</option>
+              <optgroup label="Kategori tambahan" id="exCatCustomGroup"></optgroup>
+              <option value="__new__">➕ Tambah kategori baru...</option>
+            </select>
+            <div id="exCatNewRow" class="hidden" style="display:flex;gap:6px;margin-top:6px">
+              <input id="exCatCustom" placeholder="Nama kategori baru, cth: Parkir" style="flex:1">
+              <button type="button" class="btn" style="width:auto;margin:0;padding:9px 14px;background:var(--coffee)" onclick="addCustomExpenseCat()">Simpan</button>
+            </div>
+            <div id="exCatManage" class="hidden" style="margin-top:8px;padding:8px 10px;background:var(--panel-3);border-radius:10px;font-size:12.5px"></div>
+          </div>
           <div class="ff"><label>Tanggal</label><input id="exDate" type="date"></div>
         </div>
         <div class="ff"><label>Jenis Pengeluaran</label><select id="exType"><option>Harian</option><option>Bulanan</option></select></div>
@@ -2277,7 +2285,7 @@ async function saveCapitalC(){
 
 /* ---------- PENGELUARAN ---------- */
 let exFrom=null,exTo=null,exEditId=null,exData=[];
-const EXP_COLORS={"Belanja Stok":"#e8590c","Operasional":"#3b6fd6","Gaji Karyawan":"#7048e8","Uang Makan Karyawan":"#ae3ec9","Galon Air & Gas":"#1098ad","Sewa Tempat":"#2f9e44","Listrik & Air":"#d6336c","Tabungan Gas":"#fd7e14","Tabungan Listrik":"#fab005","Tabungan":"#0ca678","Lain-lain":"#868e96"};
+const EXP_COLORS={"Belanja Stok":"#e8590c","Operasional":"#3b6fd6","Gaji Karyawan":"#7048e8","Uang Makan Karyawan":"#ae3ec9","Galon Air":"#1098ad","Gas":"#f08c00","Sewa Tempat":"#2f9e44","Listrik & Air":"#d6336c","Tabungan Gas":"#fd7e14","Tabungan Listrik":"#fab005","Tabungan":"#0ca678","Lain-lain":"#868e96"};
 function openExpense(){if(!isAdmin()){toast("Akses Pengeluaran khusus Admin/Owner");return;}resetExpenseForm();document.getElementById("exDate").value=bizYmd(new Date());setExpPreset("bulan");document.getElementById("expenseOverlay").classList.remove("hidden");}
 function setExpPreset(p){
   const now=new Date();["hari","bulan","custom"].forEach(x=>document.getElementById("ex-"+x).classList.toggle("on",x===p));
@@ -2326,24 +2334,79 @@ function renderExpenses(){
   if(dBulanan.length)h+=`<h4 class="rpt-sec" style="margin:14px 0 6px">📦 Belanja Bulanan — ${rp(tB)}</h4>`+dBulanan.map(rowH).join("");
   box.innerHTML=h;
 }
+function builtinExpCats(){return ["Belanja Stok","Operasional","Gaji Karyawan","Uang Makan Karyawan","Galon Air","Gas","Sewa Tempat","Listrik & Air","Tabungan Gas","Tabungan Listrik","Tabungan","Lain-lain"];}
+function populateExpCatOptions(keepValue){
+  const sel=document.getElementById("exCat");if(!sel)return;
+  const keep=keepValue!==undefined?keepValue:sel.value;
+  const custom=(state.shop&&state.shop.customExpenseCats)||[];
+  const grp=document.getElementById("exCatCustomGroup");
+  grp.innerHTML=custom.map(c=>`<option>${escHtml(c)}</option>`).join("");
+  const known=builtinExpCats().concat(custom);
+  if(keep&&keep!=="__new__"&&known.indexOf(keep)===-1){
+    // nilai lama (kategori historis, belum/tidak ada di daftar) -> tampilkan apa adanya biar tidak hilang
+    const opt=document.createElement("option");opt.textContent=keep;
+    sel.insertBefore(opt,grp);
+  }
+  if(keep)sel.value=keep;
+}
 function expCatChanged(){
-  const custom=document.getElementById("exCat").value==="__custom__";
-  document.getElementById("exCatCustom").classList.toggle("hidden",!custom);
-  if(custom)document.getElementById("exCatCustom").focus();
+  const isNew=document.getElementById("exCat").value==="__new__";
+  document.getElementById("exCatNewRow").classList.toggle("hidden",!isNew);
+  if(isNew)document.getElementById("exCatCustom").focus();
+}
+async function addCustomExpenseCat(){
+  const name=document.getElementById("exCatCustom").value.trim();
+  if(!name){toast("Isi nama kategorinya dulu");return;}
+  const cur=(state.shop&&state.shop.customExpenseCats)||[];
+  if(builtinExpCats().concat(cur).indexOf(name)!==-1){toast("Kategori itu sudah ada");populateExpCatOptions(name);document.getElementById("exCatNewRow").classList.add("hidden");return;}
+  try{
+    const r=await run("saveCustomExpenseCats",state.token,cur.concat([name]));
+    state.shop=state.shop||{};state.shop.customExpenseCats=r.customExpenseCats;
+    document.getElementById("exCatCustom").value="";
+    document.getElementById("exCatNewRow").classList.add("hidden");
+    populateExpCatOptions(name);
+    toast("Kategori \""+name+"\" ditambahkan");
+  }catch(e){}
+}
+function toggleCatManage(){
+  const el=document.getElementById("exCatManage");
+  const show=el.classList.contains("hidden");
+  el.classList.toggle("hidden",!show);
+  if(show)renderCatManage();
+}
+function renderCatManage(){
+  const el=document.getElementById("exCatManage");
+  const custom=(state.shop&&state.shop.customExpenseCats)||[];
+  el.innerHTML=custom.length
+    ? "Kategori tambahan:<br>"+custom.map(c=>`<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg-2);border-radius:8px;padding:3px 4px 3px 10px;margin:4px 6px 0 0">${escHtml(c)}<button type="button" onclick="removeCustomExpenseCat('${escHtml(c).replace(/'/g,"\\'")}')" style="border:none;background:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 6px">✕</button></span>`).join("")
+    : "Belum ada kategori tambahan. Pilih \"➕ Tambah kategori baru\" di dropdown atas untuk bikin.";
+}
+async function removeCustomExpenseCat(name){
+  if(!confirm("Hapus kategori \""+name+"\"? (pengeluaran yang sudah tercatat pakai nama ini tidak berubah)"))return;
+  const cur=(state.shop&&state.shop.customExpenseCats)||[];
+  try{
+    const r=await run("saveCustomExpenseCats",state.token,cur.filter(c=>c!==name));
+    state.shop=state.shop||{};state.shop.customExpenseCats=r.customExpenseCats;
+    populateExpCatOptions(document.getElementById("exCat").value===name?"Lain-lain":undefined);
+    renderCatManage();
+    toast("Kategori dihapus");
+  }catch(e){}
 }
 function readExpForm(){
-  const sel=document.getElementById("exCat").value;
-  const cat=sel==="__custom__"?document.getElementById("exCatCustom").value.trim():sel;
-  return{cat:cat,date:document.getElementById("exDate").value,
+  const cat=document.getElementById("exCat").value;
+  return{cat:cat==="__new__"?"":cat,date:document.getElementById("exDate").value,
   name:document.getElementById("exName").value.trim(),amount:parseFloat(document.getElementById("exAmount").value)||0,
   note:document.getElementById("exNote").value.trim(),type:document.getElementById("exType").value};}
 function resetExpenseForm(){exEditId=null;document.getElementById("exName").value="";document.getElementById("exAmount").value="";document.getElementById("exNote").value="";document.getElementById("exDate").value=bizYmd(new Date());document.getElementById("exType").value="Harian";
-  if(document.getElementById("exCat").value==="__custom__"){document.getElementById("exCat").value="Belanja Stok";document.getElementById("exCatCustom").classList.add("hidden");}
+  const keep=document.getElementById("exCat").value==="__new__"?"Belanja Stok":undefined;
+  populateExpCatOptions(keep);
+  document.getElementById("exCatNewRow").classList.add("hidden");
   document.getElementById("exCatCustom").value="";
+  document.getElementById("exCatManage").classList.add("hidden");
   document.getElementById("exSaveBtn").textContent="💾 Simpan Pengeluaran";}
 async function saveExpense(){
   const f=readExpForm();
-  if(!f.cat){toast("Isi nama kategorinya dulu");return;}
+  if(!f.cat){toast("Pilih atau tambah kategorinya dulu");return;}
   if(!f.name){toast("Isi keterangan dulu");return;}
   if(!(f.amount>0)){toast("Jumlah harus lebih dari 0");return;}
   try{
@@ -2354,16 +2417,9 @@ async function saveExpense(){
 }
 function editExpense(id){
   const e=exData.find(x=>x.id===id);if(!e)return;exEditId=id;
-  const catSel=document.getElementById("exCat");
-  catSel.value=e.cat;
-  if(catSel.value!==e.cat){ // kategori lama tidak ada di daftar preset -> mode tulis sendiri
-    catSel.value="__custom__";
-    document.getElementById("exCatCustom").value=e.cat;
-    document.getElementById("exCatCustom").classList.remove("hidden");
-  }else{
-    document.getElementById("exCatCustom").value="";
-    document.getElementById("exCatCustom").classList.add("hidden");
-  }
+  populateExpCatOptions(e.cat);
+  document.getElementById("exCatNewRow").classList.add("hidden");
+  document.getElementById("exCatManage").classList.add("hidden");
   document.getElementById("exDate").value=ymd(e.date);
   document.getElementById("exName").value=e.name;document.getElementById("exAmount").value=e.amount;document.getElementById("exNote").value=e.note;document.getElementById("exType").value=e.type||"Harian";
   document.getElementById("exSaveBtn").textContent="💾 Update Pengeluaran";
