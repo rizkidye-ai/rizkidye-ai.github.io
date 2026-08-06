@@ -675,7 +675,15 @@
       <div class="split-calc" id="splitCalc"></div>
       <div class="line total" style="margin-top:10px"><span>Bagian dibayar</span><span id="splitTotal">Rp 0</span></div>
       <div class="field" style="margin-top:10px"><label>Metode Pembayaran</label>
-        <select id="splitMethod" onchange="splitMixChanged()"><option>Tunai</option><option>QRIS</option><option>E-Wallet</option><option>Transfer Bank</option><option>Campur (Tunai+QRIS)</option></select></div>
+        <input type="hidden" id="splitMethod" value="Tunai">
+        <div class="pm-row" id="splitMethodRow">
+          <button type="button" class="pm-btn on" data-v="Tunai" onclick="setSplitPayMethod('Tunai')">💵 Tunai</button>
+          <button type="button" class="pm-btn noncash" data-v="QRIS" onclick="setSplitPayMethod('QRIS')">📱 QRIS</button>
+          <button type="button" class="pm-btn noncash" data-v="E-Wallet" onclick="setSplitPayMethod('E-Wallet')">👛 E-Wallet</button>
+          <button type="button" class="pm-btn noncash" data-v="Transfer Bank" onclick="setSplitPayMethod('Transfer Bank')">🏦 Transfer</button>
+          <button type="button" class="pm-btn noncash" data-v="Campur (Tunai+QRIS)" onclick="setSplitPayMethod('Campur (Tunai+QRIS)')">➗ Campur</button>
+        </div>
+      </div>
       <div class="field hidden" id="splitMixRow"><label>Tunai diterima (sisanya QRIS)</label><input id="splitMixCash" type="number" min="0" oninput="splitMixInfo()"><div id="splitMixHint" style="font-size:12px;color:#6f5836;margin-top:4px"></div></div>
       <div class="field"><label>Uang Masuk</label><input id="splitCash" type="number" min="0" placeholder="0" oninput="renderSplitTotals()"></div>
       <div class="quick-cash">
@@ -1922,6 +1930,11 @@ function splitSelectAll(){splitItems().forEach(it=>splitSel[it.id]=it.qty);rende
 let splitExtra={};
 function splitExtraVal(){return Object.keys(splitExtra).reduce((s,id)=>{const p=prod(id);return s+(splitExtra[id]||0)*(p?p.price:0);},0);}
 function splitTotalVal(){return splitItems().reduce((s,it)=>s+(splitSel[it.id]||0)*it.price,0)+splitExtraVal();}
+function setSplitPayMethod(v){
+  document.getElementById("splitMethod").value=v;
+  document.querySelectorAll("#splitMethodRow .pm-btn").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
+  splitMixChanged();
+}
 function splitMixChanged(){const mix=document.getElementById("splitMethod").value.indexOf("Campur")===0;document.getElementById("splitMixRow").classList.toggle("hidden",!mix);if(mix)splitMixInfo();}
 function splitMixInfo(){const tot=splitTotalVal();const c=parseFloat(document.getElementById("splitMixCash").value)||0;document.getElementById("splitMixHint").textContent=(c>0&&c<tot)?("Tunai "+rp(c)+" + QRIS "+rp(tot-c)):(c>=tot?"⚠️ Tunai ≥ total — pakai Tunai saja":"Isi jumlah tunai yang diterima");}
 function toggleSplitAdd(){const p=document.getElementById("splitAddPanel");p.classList.toggle("hidden");if(!p.classList.contains("hidden")){renderSplitAdd();}}
