@@ -1216,7 +1216,7 @@ async function enterApp(){
   applyShopBranding();
   state.openToday=(data.openToday!==undefined)?data.openToday:null;
   if(state.openToday==null)setTimeout(()=>toast("💰 Belum catat modal awal laci — ☰ Menu → Buka Kas"),1600);
-  startClock();renderAll();updateDebtBadge();startChatPolling();
+  startClock();renderAll();updateDebtBadge();startChatPolling();startChatRealtime();
   setTimeout(showWelcome,200);
 }
 function logout(){location.reload();}
@@ -1714,14 +1714,44 @@ function chatReadKey(){return "chatRead_"+(state.user?state.user.name:"anon");}
 function getChatReadId(){return parseInt(localStorage.getItem(chatReadKey())||"0")||0;}
 function setChatReadId(id){localStorage.setItem(chatReadKey(),String(id));}
 function startChatPolling(){if(chatPollTimer)clearInterval(chatPollTimer);pollChat();chatPollTimer=setInterval(pollChat,20000);}
+function playChatSound(){
+  try{
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const t=ctx.currentTime;
+    [880,1175].forEach((freq,i)=>{
+      const osc=ctx.createOscillator(),gain=ctx.createGain();
+      osc.type="sine";osc.frequency.value=freq;
+      osc.connect(gain);gain.connect(ctx.destination);
+      const start=t+i*0.12;
+      gain.gain.setValueAtTime(0,start);
+      gain.gain.linearRampToValueAtTime(0.2,start+0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001,start+0.22);
+      osc.start(start);osc.stop(start+0.24);
+    });
+  }catch(e){}
+}
+function addIncomingChatMessage(m){
+  if(chatMessages.some(x=>x.id===m.id))return;
+  chatMessages.push(m);
+  chatMessages.sort((a,b)=>a.id-b.id);
+  chatLastFetchedId=Math.max(chatLastFetchedId,m.id);
+  if(isOpen("chatOverlay")){renderChat();setChatReadId(chatLastFetchedId);}
+  updateChatBadge();
+  if(!state.user||m.sender!==state.user.name)playChatSound();
+}
+let chatRealtimeChannel=null;
+function startChatRealtime(){
+  if(!window.db||chatRealtimeChannel)return;
+  chatRealtimeChannel=window.db.channel("chat_messages_realtime")
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"chat_messages"},(payload)=>{
+      addIncomingChatMessage(payload.new);
+    })
+    .subscribe();
+}
 async function pollChat(){
   try{
     const msgs=await run("getChatMessages",state.token,chatLastFetchedId);
-    if(msgs&&msgs.length){
-      chatMessages=chatMessages.concat(msgs);
-      chatLastFetchedId=msgs[msgs.length-1].id;
-      if(isOpen("chatOverlay")){renderChat();setChatReadId(chatLastFetchedId);}
-    }
+    if(msgs&&msgs.length)msgs.forEach(addIncomingChatMessage);
     updateChatBadge();
   }catch(e){}
 }

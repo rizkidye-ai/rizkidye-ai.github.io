@@ -1470,4 +1470,4 @@ const API = {
 /* Node (tes) */
 if (typeof module !== 'undefined') module.exports = { API, db };
 /* Browser (aplikasi) */
-if (typeof window !== 'undefined') window.API = API;
+if (typeof window !== 'undefined') { window.API = API; window.db = db; }
