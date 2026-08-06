@@ -453,6 +453,7 @@
         <div class="mgrp g-operasi">
           <div class="mgrp-label">Operasi</div>
           <button class="tb-btn" onclick="openKasC()"><span class="mi-ico">💰</span><span class="mi-lbl">Buka Kas</span></button>
+          <button class="tb-btn" id="btnChat" onclick="openChat()"><span class="mi-ico">💬</span><span class="mi-lbl">Chat Tim <span id="chatAlert" class="inv-alert hidden">0</span></span></button>
           <button class="tb-btn" onclick="openKasKeluar()"><span class="mi-ico">📤</span><span class="mi-lbl">Rekap Kas Keluar</span></button>
           <button class="tb-btn" id="btnConsume" onclick="openConsume()"><span class="mi-ico">🍵</span><span class="mi-lbl">Konsumsi</span></button>
           <!-- FULLSCREEN-START (hapus sampai FULLSCREEN-END jika tidak berfungsi) -->
@@ -853,6 +854,18 @@
   </div>
 </div>
 
+<!-- CHAT TIM -->
+<div class="overlay hidden" id="chatOverlay">
+  <div class="sheet" style="max-width:560px;height:82vh">
+    <header><h3>💬 Chat Tim</h3><button onclick="closeChat()">✕</button></header>
+    <div class="sheet-body" id="chatBody" style="flex:1;min-height:0;display:flex;flex-direction:column;gap:10px"></div>
+    <div style="padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;flex-shrink:0">
+      <input id="chatInput" placeholder="Tulis pesan..." style="flex:1;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--txt)" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChatMsg();}">
+      <button class="btn btn-pay" style="width:auto;margin:0;padding:10px 18px" onclick="sendChatMsg()">Kirim</button>
+    </div>
+  </div>
+</div>
+
 <!-- RIWAYAT TRANSAKSI -->
 <div class="overlay hidden" id="historyOverlay">
   <div class="sheet" style="max-width:620px">
@@ -1199,7 +1212,7 @@ async function enterApp(){
   applyShopBranding();
   state.openToday=(data.openToday!==undefined)?data.openToday:null;
   if(state.openToday==null)setTimeout(()=>toast("💰 Belum catat modal awal laci — ☰ Menu → Buka Kas"),1600);
-  startClock();renderAll();updateDebtBadge();
+  startClock();renderAll();updateDebtBadge();startChatPolling();
   setTimeout(showWelcome,200);
 }
 function logout(){location.reload();}
@@ -1689,6 +1702,62 @@ function updateDebtBadge(){
   const n=(state.debts||[]).filter(d=>!d.paid).length;
   const el=document.getElementById("debtAlert");
   if(el){el.textContent=n;el.classList.toggle("hidden",n===0);}
+}
+/* ---------- CHAT TIM ---------- */
+let chatMessages=[],chatLastFetchedId=0,chatPollTimer=null;
+function escHtml(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function chatReadKey(){return "chatRead_"+(state.user?state.user.name:"anon");}
+function getChatReadId(){return parseInt(localStorage.getItem(chatReadKey())||"0")||0;}
+function setChatReadId(id){localStorage.setItem(chatReadKey(),String(id));}
+function startChatPolling(){if(chatPollTimer)clearInterval(chatPollTimer);pollChat();chatPollTimer=setInterval(pollChat,20000);}
+async function pollChat(){
+  try{
+    const msgs=await run("getChatMessages",state.token,chatLastFetchedId);
+    if(msgs&&msgs.length){
+      chatMessages=chatMessages.concat(msgs);
+      chatLastFetchedId=msgs[msgs.length-1].id;
+      if(isOpen("chatOverlay")){renderChat();setChatReadId(chatLastFetchedId);}
+    }
+    updateChatBadge();
+  }catch(e){}
+}
+function updateChatBadge(){
+  const readId=getChatReadId();
+  const unread=chatMessages.filter(m=>m.id>readId).length;
+  const el=document.getElementById("chatAlert");
+  if(!el)return;
+  el.textContent=unread>99?"99+":String(unread);
+  el.classList.toggle("hidden",unread<=0);
+}
+function chatBubble(m){
+  if(m.kind==="system"){
+    return `<div style="align-self:center;max-width:92%;text-align:center;font-size:12px;color:var(--muted);background:rgba(240,169,58,.1);border:1px solid rgba(240,169,58,.25);border-radius:10px;padding:8px 12px">${escHtml(m.text)}<div style="font-size:10px;margin-top:3px;opacity:.7">${fmtHM(m.datetime)}</div></div>`;
+  }
+  const me=state.user&&m.sender===state.user.name;
+  return `<div style="align-self:${me?"flex-end":"flex-start"};max-width:82%;background:${me?"rgba(240,169,58,.14)":"var(--bg-2)"};border:1px solid ${me?"rgba(240,169,58,.35)":"var(--line)"};border-radius:12px;padding:8px 12px">
+    <div style="font-size:11px;margin-bottom:3px;white-space:nowrap">${roleBadge(m.role||"Kasir")} <b style="color:var(--txt)">${escHtml(m.sender)}</b> <span style="color:var(--muted)">${fmtHM(m.datetime)}</span></div>
+    <div style="font-size:14px;color:var(--txt);white-space:pre-wrap;word-break:break-word">${escHtml(m.text)}</div>
+  </div>`;
+}
+function renderChat(){
+  const box=document.getElementById("chatBody");
+  box.innerHTML=chatMessages.length?chatMessages.map(chatBubble).join(""):'<div style="text-align:center;color:#b3a999;padding:20px;align-self:center">Belum ada pesan. Mulai obrolan tim di sini.</div>';
+  box.scrollTop=box.scrollHeight;
+}
+async function openChat(){
+  document.getElementById("chatOverlay").classList.remove("hidden");
+  renderChat();
+  setChatReadId(chatLastFetchedId);
+  updateChatBadge();
+  document.getElementById("chatInput").focus();
+}
+function closeChat(){document.getElementById("chatOverlay").classList.add("hidden");}
+async function sendChatMsg(){
+  const inp=document.getElementById("chatInput");
+  const text=inp.value.trim();
+  if(!text)return;
+  inp.value="";
+  try{await run("sendChatMessage",state.token,text);await pollChat();}catch(e){}
 }
 async function openDebt(){
   document.getElementById("debtOverlay").classList.remove("hidden");

@@ -106,7 +106,7 @@ async function getUsersFull(){
 
 /* ---------- STOK: hormati stok induk & produk mitra ---------- */
 async function applyStock(items, original, reason, byName){
-  const { data: prods, error } = await db.from('products').select('id,name,stock,cost,mitra,stok_induk');
+  const { data: prods, error } = await db.from('products').select('id,name,stock,cost,mitra,stok_induk,min');
   need(error);
   const byId = {}; (prods||[]).forEach(p => byId[String(p.id)] = p);
   const rootOf = id => {
@@ -123,17 +123,29 @@ async function applyStock(items, original, reason, byName){
   });
   add(items, 1); add(original, -1);
 
-  const upd = [], logs = [];
+  const upd = [], logs = [], lowStock = [];
   Object.keys(delta).forEach(r => {
     const d = delta[r]; if (!d) return;
     const p = byId[r];
-    const after = Math.max(0, (Number(p.stock)||0) - d);
+    const before = Number(p.stock)||0;
+    const after = Math.max(0, before - d);
     upd.push({ id: r, stock: after });
     logs.push({ product_id: r, name: p.name, type: (d>0 ? reason : 'Retur'),
       delta: -d, after: after, note: reason, by_user: byName });
+    const min = Number(p.min)||0;
+    if (d > 0 && min > 0 && after <= min && before > min) lowStock.push({ name: p.name, after, min });
   });
   if (upd.length) { const { error: e2 } = await db.from('products').upsert(upd); need(e2); }
   if (logs.length) db.from('stock_log').insert(logs).then(()=>{});   // log jalan di belakang layar
+  return { lowStock };
+}
+function postSystemChat(text){
+  db.from('chat_messages').insert([{ sender:'Sistem', role:'system', text:text, kind:'system', datetime:new Date().toISOString() }]).then(()=>{});
+}
+async function notifyLowStock(lowStock){
+  for (const ls of lowStock) {
+    postSystemChat('⚠️ Stok "'+ls.name+'" tinggal '+ls.after+' (batas minimum '+ls.min+')');
+  }
 }
 
 /* ---------- nomor struk (ikut hari usaha) ---------- */
@@ -235,7 +247,8 @@ const API = {
       const { data: t } = await db.from('tables_').select('items').eq('no', fromNo).maybeSingle();
       if (t && t.items) original = t.items;
     }
-    await applyStock(items, original, fromNo ? ('Penjualan Meja '+fromNo) : 'Penjualan', u.name);
+    const st = await applyStock(items, original, fromNo ? ('Penjualan Meja '+fromNo) : 'Penjualan', u.name);
+    if (st.lowStock.length) notifyLowStock(st.lowStock);
 
     const no = await insertSale({
       datetime: new Date().toISOString(), kasir: u.name, table: fromNo ? String(fromNo) : '',
@@ -264,7 +277,8 @@ const API = {
       const { data: ft } = await db.from('tables_').select('items,opened').eq('no', fromNo).maybeSingle();
       if (ft) { if (ft.items) original = ft.items; if (ft.opened) opened = ft.opened; }
     }
-    await applyStock(items, original, 'Pesanan meja', u.name);
+    const st = await applyStock(items, original, 'Pesanan meja', u.name);
+    if (st.lowStock.length) notifyLowStock(st.lowStock);
 
     if (fromNo && fromNo !== target) {
       await db.from('tables_').update({ status:'kosong', cust_name:'', note:'', opened:null, items:null })
@@ -448,6 +462,9 @@ const API = {
       opening:opening, expected:expected, counted:counted, selisih:selisih, note:payload.note||'',
       by_method:s.byMethod, titipan_mitra:titipan, titipan:payMap };
     need(( await db.from('cash_close').upsert(rec) ).error);
+    const rpFmt = v => 'Rp'+Math.round(v).toLocaleString('id-ID');
+    const selisihTxt = selisih===0 ? 'PAS ✅' : (selisih>0 ? ('lebih '+rpFmt(selisih)+' ⚠️') : ('kurang '+rpFmt(Math.abs(selisih))+' ⚠️'));
+    postSystemChat('📊 Tutup Kas '+s.date+' oleh '+u.name+'\nOmzet: '+rpFmt(s.total)+' · Transaksi: '+s.count+'\nPengeluaran: '+rpFmt(s.expenses)+'\nKas dihitung: '+rpFmt(counted)+' (seharusnya '+rpFmt(expected)+')\nSelisih: '+selisihTxt);
     return { by:u.name, date:s.date, count:s.count, totalSales:s.total, cashSales:s.cashSales,
       nonCash:s.total-s.cashSales, expenses:s.expenses, opening:opening, expected:expected,
       counted:counted, selisih:selisih, note:payload.note||'', byMethod:s.byMethod,
@@ -466,6 +483,27 @@ const API = {
       expected:Number(z.expected)||0, counted:Number(z.counted)||0, selisih:Number(z.selisih)||0,
       note:z.note||'', byMethod:z.by_method||{}, titipanMitra:Number(z.titipan_mitra)||0, titipanByMitra:z.titipan||{}
     })).sort((a,b)=> b.date.localeCompare(a.date) || ((b.datetime||0)-(a.datetime||0)));
+  },
+
+  /* ================= CHAT TIM ================= */
+
+  async getChatMessages(token, sinceId){
+    requireUser(token);
+    let q = db.from('chat_messages').select('*').order('id', { ascending:true }).limit(200);
+    if (sinceId) q = q.gt('id', Number(sinceId));
+    const { data, error } = await q;
+    need(error);
+    return (data||[]).map(m => ({ id:m.id, sender:m.sender, role:m.role||'', text:m.text,
+      kind:m.kind||'user', datetime:m.datetime }));
+  },
+
+  async sendChatMessage(token, text){
+    const u = requireUser(token);
+    const t = String(text||'').trim();
+    if (!t) throw new Error('Pesan kosong.');
+    if (t.length > 1000) throw new Error('Pesan terlalu panjang (maks 1000 karakter).');
+    need(( await db.from('chat_messages').insert([{ sender:u.name, role:u.role, text:t, kind:'user', datetime:new Date().toISOString() }]) ).error);
+    return { ok:true };
   },
 
   /* ================= RIWAYAT & REFUND ================= */
