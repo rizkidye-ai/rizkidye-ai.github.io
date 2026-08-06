@@ -2084,7 +2084,7 @@ async function saveCapitalC(){
 /* ---------- PENGELUARAN ---------- */
 let exFrom=null,exTo=null,exEditId=null,exData=[];
 const EXP_COLORS={"Belanja Stok":"#e8590c","Operasional":"#3b6fd6","Gaji Karyawan":"#7048e8","Sewa Tempat":"#2f9e44","Listrik & Air":"#d6336c","Tabungan Gas":"#fd7e14","Tabungan Listrik":"#fab005","Tabungan":"#0ca678","Lain-lain":"#868e96"};
-function openExpense(){if(!isAdmin()){toast("Akses Pengeluaran khusus Admin/Owner");return;}resetExpenseForm();document.getElementById("exDate").value=ymd(new Date());setExpPreset("bulan");document.getElementById("expenseOverlay").classList.remove("hidden");}
+function openExpense(){if(!isAdmin()){toast("Akses Pengeluaran khusus Admin/Owner");return;}resetExpenseForm();document.getElementById("exDate").value=bizYmd(new Date());setExpPreset("bulan");document.getElementById("expenseOverlay").classList.remove("hidden");}
 function setExpPreset(p){
   const now=new Date();["hari","bulan","custom"].forEach(x=>document.getElementById("ex-"+x).classList.toggle("on",x===p));
   document.getElementById("exCustom").classList.toggle("hidden",p!=="custom");
@@ -2135,7 +2135,7 @@ function renderExpenses(){
 function readExpForm(){return{cat:document.getElementById("exCat").value,date:document.getElementById("exDate").value,
   name:document.getElementById("exName").value.trim(),amount:parseFloat(document.getElementById("exAmount").value)||0,
   note:document.getElementById("exNote").value.trim(),type:document.getElementById("exType").value};}
-function resetExpenseForm(){exEditId=null;document.getElementById("exName").value="";document.getElementById("exAmount").value="";document.getElementById("exNote").value="";document.getElementById("exDate").value=ymd(new Date());document.getElementById("exType").value="Harian";document.getElementById("exSaveBtn").textContent="💾 Simpan Pengeluaran";}
+function resetExpenseForm(){exEditId=null;document.getElementById("exName").value="";document.getElementById("exAmount").value="";document.getElementById("exNote").value="";document.getElementById("exDate").value=bizYmd(new Date());document.getElementById("exType").value="Harian";document.getElementById("exSaveBtn").textContent="💾 Simpan Pengeluaran";}
 async function saveExpense(){
   const f=readExpForm();
   if(!f.name){toast("Isi keterangan dulu");return;}
