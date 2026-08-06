@@ -440,7 +440,6 @@
 
 <div id="app" class="hidden">
   <header class="topbar">
-    <div class="logo">☕ 3Rakan Kupi</div>
     <div class="menu-wrap">
       <button class="tb-btn hamburger-btn" onclick="toggleMoreMenu(event)">☰</button>
       <div class="menu-drop hidden" id="moreMenu">
@@ -455,7 +454,6 @@
           <div class="mgrp-label">Operasi</div>
           <button class="tb-btn" onclick="openKasC()"><span class="mi-ico">💰</span><span class="mi-lbl">Buka Kas</span></button>
           <button class="tb-btn" onclick="openKasKeluar()"><span class="mi-ico">📤</span><span class="mi-lbl">Rekap Kas Keluar</span></button>
-          <button class="tb-btn" onclick="openKasKeluar()"><span class="mi-ico">📤</span><span class="mi-lbl">Kas Keluar</span></button>
           <button class="tb-btn" id="btnConsume" onclick="openConsume()"><span class="mi-ico">🍵</span><span class="mi-lbl">Konsumsi</span></button>
           <!-- FULLSCREEN-START (hapus sampai FULLSCREEN-END jika tidak berfungsi) -->
           <button class="tb-btn" id="btnFS" onclick="toggleFS()"><span class="mi-ico">⛶</span><span class="mi-lbl">Layar Penuh</span></button>
@@ -495,6 +493,7 @@
       </div>
     </div>
     <div class="menu-backdrop hidden" id="menuBackdrop"></div>
+    <div class="logo">☕ 3Rakan Kupi</div>
     <div class="meta"><span id="hdrUser">Kasir</span><span id="hdrClock">—</span></div>
     <div class="spacer"></div>
     <button class="tb-btn meja" onclick="openMeja()"><span class="dot"></span>🍽️ Meja: <span id="mejaCount">0</span> · <span id="mejaTotal">Rp 0</span></button>
@@ -1125,7 +1124,7 @@ let cart=[],discType="rp",payType="bayar",activeCat="Semua";
 let cartMode="new",editingTable=null,editingKind="meja",originalCommitted={};
 let pinTargetId=null,pinEntry="",busy=false,staffTiles=[],lastReceipt=null,lastZ=null;
 
-const CAT_LIST=["Reguler","Varian Sachet","Signature","Makanan"];
+const CAT_LIST=["Reguler","Varian Sachet","Signature","Makanan","Bungkus"];
 const CATS=["Semua",...CAT_LIST];
 const MONTHS_FULL=["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 
