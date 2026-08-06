@@ -660,7 +660,7 @@
 
 <!-- SPLIT BILL OVERLAY -->
 <div class="overlay hidden" id="splitOverlay">
-  <div class="sheet" style="max-width:460px">
+  <div class="sheet" style="max-width:660px">
     <header><h3 id="splitTitle">✂️ Split Bill</h3><button onclick="closeOverlay('splitOverlay')">✕</button></header>
     <div class="sheet-body">
       <p style="margin:0 0 12px;font-size:13px;color:#8a8276">Atur berapa item yang dibayar sekarang. Sisanya tetap di meja.</p>
@@ -669,7 +669,7 @@
       <button class="btn" style="background:#efe7db;color:#6f5836;margin-top:6px" onclick="toggleSplitAdd()">➕ Tambah Item (kue dll.)</button>
       <div id="splitAddPanel" class="hidden" style="margin-top:8px;border:1.5px dashed var(--line);border-radius:12px;padding:10px">
         <input id="splitAddSearch" placeholder="🔍 cari kue / produk..." style="width:100%;padding:9px 10px;border:1.5px solid var(--line);border-radius:9px;margin-bottom:8px" oninput="renderSplitAdd()">
-        <div id="splitAddGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;max-height:180px;overflow:auto"></div>
+        <div id="splitAddGrid" class="grid" style="max-height:360px;overflow:auto"></div>
       </div>
       <div class="split-calc" id="splitCalc"></div>
       <div class="line total" style="margin-top:10px"><span>Bagian dibayar</span><span id="splitTotal">Rp 0</span></div>
@@ -1776,7 +1776,7 @@ function renderSplitAdd(){
   const q=(document.getElementById("splitAddSearch").value||"").toLowerCase();
   const list=state.products.filter(p=>p.active&&p.mitra&&p.name.toLowerCase().includes(q)).slice(0,30);
   document.getElementById("splitAddGrid").innerHTML=list.map(p=>
-    `<button style="border:1.5px solid var(--line);border-radius:10px;background:#fff;padding:8px;text-align:left;font-size:12.5px" onclick="splitExtraChange('${p.id}',1)"><b>${p.name}</b>${p.mitra?` <span style="color:#6f5836">🤝</span>`:""}<div style="color:var(--coffee);font-weight:700">${rp(p.price)}</div></button>`).join("")||'<div style="grid-column:1/-1;text-align:center;color:#b3a999;padding:8px">Tidak ada.</div>';
+    `<button class="prod" onclick="splitExtraChange('${p.id}',1)"><span class="stock-badge st-ok" style="background:#efe7db;color:#6f5836">🤝 ${p.mitra}</span><div class="pname">${p.name}</div><div class="pprice">${rp(p.price)}</div></button>`).join("")||'<div style="grid-column:1/-1;text-align:center;color:#b3a999;padding:8px">Tidak ada.</div>';
 }
 function splitExtraChange(id,d){
   const p=prod(id);if(!p)return;
