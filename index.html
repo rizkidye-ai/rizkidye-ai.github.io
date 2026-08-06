@@ -758,6 +758,8 @@
           <button class="rpt-p on" id="rp-hari" onclick="setReportPreset('hari')">Hari Ini</button>
           <button class="rpt-p" id="rp-kemarin" onclick="setReportPreset('kemarin')">Kemarin</button>
           <button class="rpt-p" id="rp-bulan" onclick="setReportPreset('bulan')">Bulan Ini</button>
+          <button class="rpt-p" id="rp-bulanlalu" onclick="setReportPreset('bulanlalu')">Bulan Lalu</button>
+          <button class="rpt-p" id="rp-tahunlalu" onclick="setReportPreset('tahunlalu')">Tahun Lalu</button>
           <button class="rpt-p" id="rp-custom" onclick="setReportPreset('custom')">Pilih Tanggal</button>
         </div>
         <div class="rpt-custom hidden" id="rptCustom">
@@ -2332,18 +2334,20 @@ function dayStart(d){const x=new Date(d);x.setHours(0,0,0,0);return x;}
 function dayEnd(d){const x=new Date(d);x.setHours(23,59,59,999);return x;}
 function openReport(){if(!isAdmin()){toast("Akses Laporan khusus Admin/Owner");return;}document.getElementById("lap-neraca").classList.toggle("hidden",!isOwner());setLapView("jual");setReportPreset("bulan");document.getElementById("reportOverlay").classList.remove("hidden");}
 function setReportPreset(p){
-  const now=bizNow();["hari","kemarin","bulan","custom"].forEach(x=>document.getElementById("rp-"+x).classList.toggle("on",x===p));
+  const now=bizNow();["hari","kemarin","bulan","bulanlalu","tahunlalu","custom"].forEach(x=>document.getElementById("rp-"+x).classList.toggle("on",x===p));
   document.getElementById("rptCustom").classList.toggle("hidden",p!=="custom");
   if(p==="hari"){rptFrom=dayStart(now);rptTo=dayEnd(now);}
   else if(p==="kemarin"){const y=new Date(now);y.setDate(y.getDate()-1);rptFrom=dayStart(y);rptTo=dayEnd(y);}
   else if(p==="bulan"){rptFrom=dayStart(new Date(now.getFullYear(),now.getMonth(),1));rptTo=dayEnd(now);}
+  else if(p==="bulanlalu"){rptFrom=dayStart(new Date(now.getFullYear(),now.getMonth()-1,1));rptTo=dayEnd(new Date(now.getFullYear(),now.getMonth(),0));}
+  else if(p==="tahunlalu"){rptFrom=dayStart(new Date(now.getFullYear()-1,0,1));rptTo=dayEnd(new Date(now.getFullYear()-1,11,31));}
   else{if(!rptFrom||!rptTo){rptFrom=dayStart(new Date(now.getFullYear(),now.getMonth(),1));rptTo=dayEnd(now);}document.getElementById("rptFromInp").value=ymd(rptFrom);document.getElementById("rptToInp").value=ymd(rptTo);}
   loadReport();
 }
 function applyCustomRange(){
   const f=document.getElementById("rptFromInp").value,t=document.getElementById("rptToInp").value;if(!f||!t)return;
   let a=new Date(f+"T00:00:00"),b=new Date(t+"T00:00:00");if(a>b){const tmp=a;a=b;b=tmp;}
-  rptFrom=dayStart(a);rptTo=dayEnd(b);["hari","kemarin","bulan","custom"].forEach(x=>document.getElementById("rp-"+x).classList.toggle("on",x==="custom"));loadReport();
+  rptFrom=dayStart(a);rptTo=dayEnd(b);["hari","kemarin","bulan","bulanlalu","tahunlalu","custom"].forEach(x=>document.getElementById("rp-"+x).classList.toggle("on",x==="custom"));loadReport();
 }
 function rangeText(){return ymd(rptFrom)===ymd(rptTo)?idDate(rptFrom):idDate(rptFrom)+" — "+idDate(rptTo);}
 async function loadReport(){
