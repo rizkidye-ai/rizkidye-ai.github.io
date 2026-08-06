@@ -1780,6 +1780,15 @@ async function renderChatPushBanner(){
   if(!el)return;
   const status=await checkPushStatus();
   el.classList.toggle("hidden", status!=="none");
+  if(status==="subscribed"){
+    // jaga-jaga: kalau percobaan simpan sebelumnya gagal (mis. tabel belum ada saat itu),
+    // coba simpan ulang diam-diam tiap kali chat dibuka -- idempoten, aman diulang.
+    try{
+      const reg=await navigator.serviceWorker.getRegistration();
+      const sub=reg&&await reg.pushManager.getSubscription();
+      if(sub)await run("savePushSubscription",state.token,sub.toJSON());
+    }catch(e){}
+  }
 }
 async function enablePushNotif(){
   if(!pushSupported()){toast("Browser ini tidak mendukung notifikasi push");return;}
