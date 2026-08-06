@@ -213,6 +213,10 @@
   .quick-cash{display:flex;gap:7px;margin:-2px 0 10px;flex-wrap:wrap;}
   .quick-cash button{flex:1;min-width:76px;padding:8px 6px;border-radius:9px;border:1px solid rgba(62,110,160,.35);background:rgba(62,110,160,.14);color:#8EB8DE;font-size:12px;font-weight:600;font-family:var(--mono);}
   .quick-cash button:hover{border-color:rgba(62,110,160,.6);background:rgba(62,110,160,.24);color:#fff;}
+  .pm-row{display:flex;gap:6px;flex-wrap:wrap;}
+  .pm-btn{flex:1;min-width:80px;padding:11px 6px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg-2);color:var(--muted);font-weight:700;font-size:12.5px;}
+  .pm-btn.on{border-color:rgba(240,169,58,.55);background:rgba(240,169,58,.14);color:var(--amber-soft);}
+  .pm-btn.noncash.on{border-color:rgba(62,110,160,.6);background:rgba(62,110,160,.22);color:#8EB8DE;}
   .field{margin-bottom:9px;}
   .field label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:7px;font-weight:600;}
   .field input,.field select{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:10px;font-size:14.5px;outline:none;background:var(--bg);color:var(--txt);font-family:var(--disp);}
@@ -540,7 +544,15 @@
 
         <div id="bayarFields">
           <div class="field"><label>Metode Pembayaran</label>
-            <select id="payMethod" onchange="payMethodChanged()"><option>Tunai</option><option>QRIS</option><option>E-Wallet</option><option>Transfer Bank</option><option>Campur (Tunai+QRIS)</option></select></div>
+            <input type="hidden" id="payMethod" value="Tunai">
+            <div class="pm-row">
+              <button type="button" class="pm-btn on" data-v="Tunai" onclick="setPayMethod('Tunai')">💵 Tunai</button>
+              <button type="button" class="pm-btn noncash" data-v="QRIS" onclick="setPayMethod('QRIS')">📱 QRIS</button>
+              <button type="button" class="pm-btn noncash" data-v="E-Wallet" onclick="setPayMethod('E-Wallet')">👛 E-Wallet</button>
+              <button type="button" class="pm-btn noncash" data-v="Transfer Bank" onclick="setPayMethod('Transfer Bank')">🏦 Transfer</button>
+              <button type="button" class="pm-btn noncash" data-v="Campur (Tunai+QRIS)" onclick="setPayMethod('Campur (Tunai+QRIS)')">➗ Campur</button>
+            </div>
+          </div>
           <div class="field hidden" id="mixRow"><label>Tunai diterima (sisanya QRIS)</label><input id="mixCash" type="number" min="0" placeholder="cth: 2000" oninput="mixInfo()"><div id="mixHint" style="font-size:12px;color:#6f5836;margin-top:4px"></div></div>
           <div class="field"><label>Uang Masuk</label><input id="cashIn" type="number" min="0" placeholder="0" oninput="recalc()"></div>
           <div class="quick-cash">
@@ -1340,6 +1352,7 @@ function exitEdit(){
   document.getElementById("cartTitle").textContent="Transaksi Baru";
   document.getElementById("editBanner").classList.add("hidden");
   document.getElementById("ptMeja").textContent="🍽️ Simpan ke Meja";setPayType("bayar");
+  setPayMethod("Tunai");
 }
 function snapItems(){return cart.map(c=>{const p=prod(c.id);return{id:p.id,name:p.name,qty:c.qty,price:p.price};});}
 
@@ -1429,13 +1442,18 @@ async function checkout(){
     return;
   }
 }
+function setPayMethod(v){
+  document.getElementById("payMethod").value=v;
+  document.querySelectorAll(".pm-btn").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
+  payMethodChanged();
+}
 function payMethodChanged(){
   const mix=document.getElementById("payMethod").value.indexOf("Campur")===0;
   document.getElementById("mixRow").classList.toggle("hidden",!mix);
   if(mix)mixInfo();
 }
 function mixInfo(){
-  const tot=grandTotal();
+  const tot=total();
   const c=parseFloat(document.getElementById("mixCash").value)||0;
   document.getElementById("mixHint").textContent=(c>0&&c<tot)?("Tunai "+rp(c)+" + QRIS "+rp(tot-c)):(c>=tot?"⚠️ Tunai ≥ total — pakai metode Tunai saja":"Isi jumlah tunai yang diterima");
 }
