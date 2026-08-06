@@ -579,7 +579,7 @@
         </div>
 
         <div id="hutangFields" class="hidden">
-          <div class="field"><label>Nama yang Berhutang *</label><input id="debtName" placeholder="cth: Bang Joni"></div>
+          <div class="field"><label>Nama yang Berhutang *</label><input id="debtName" list="debtNameList" placeholder="cth: Bang Joni" autocomplete="off"><datalist id="debtNameList"></datalist></div>
           <div class="field"><label>No. HP (opsional)</label><input id="debtPhone" placeholder="08xx"></div>
           <div class="field"><label>Catatan</label><input id="debtNote" placeholder="opsional"></div>
         </div>
@@ -1332,7 +1332,13 @@ function setPayType(t){
   document.getElementById("tabFields").classList.toggle("hidden",t!=="tab");
   document.getElementById("hutangFields").classList.toggle("hidden",t!=="hutang");
   document.getElementById("ptMeja").textContent=cartMode==="edit"?"🍽️ Update Meja":"🍽️ Simpan ke Meja";
+  if(t==="hutang")refreshDebtNameList();
   refreshMejaPicker();recalc();
+}
+function refreshDebtNameList(){
+  const dl=document.getElementById("debtNameList");if(!dl)return;
+  const names=[...new Set((state.debts||[]).map(d=>d.name).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"id"));
+  dl.innerHTML=names.map(n=>`<option value="${escHtml(n)}">`).join("");
 }
 function emptyTables(){return state.tables.filter(t=>t.status==="kosong");}
 function refreshMejaPicker(){
