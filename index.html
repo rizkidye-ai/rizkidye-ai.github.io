@@ -125,6 +125,8 @@
   .tb-btn{background:var(--panel-3);color:var(--txt);padding:8px 14px;border-radius:999px;font-size:12.5px;font-weight:500;display:flex;align-items:center;gap:7px;border:1px solid var(--line-hot);}
   .tb-btn:hover{background:#2C2418;border-color:#4a3d2e;}
   .tb-btn.meja{background:linear-gradient(180deg,var(--amber-soft),var(--amber));border-color:transparent;color:#1A1206;font-weight:600;box-shadow:0 3px 10px -3px rgba(240,169,58,.5);}
+  .tb-btn.chat-hot{background:linear-gradient(180deg,#FF6A57,#E5342A);border-color:transparent;color:#fff;font-weight:600;box-shadow:0 3px 10px -3px rgba(229,52,42,.6),0 0 12px -2px rgba(255,90,70,.55);}
+  .tb-btn.chat-hot:hover{background:linear-gradient(180deg,#FF7A68,#F0392E);}
   .tb-btn .dot{width:7px;height:7px;border-radius:50%;background:var(--jade);box-shadow:0 0 6px var(--jade);animation:pulse 1.6s infinite;}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(79,214,176,.55);}70%{box-shadow:0 0 0 7px rgba(79,214,176,0);}100%{box-shadow:0 0 0 0 rgba(79,214,176,0);}}
   .menu-wrap{position:relative;}
@@ -497,7 +499,7 @@
     <div class="meta"><span id="hdrUser">Kasir</span><span id="hdrClock">—</span></div>
     <div class="spacer"></div>
     <button class="tb-btn meja" onclick="openMeja()"><span class="dot"></span>🍽️ Meja: <span id="mejaCount">0</span> · <span id="mejaTotal">Rp 0</span></button>
-    <button class="tb-btn" id="btnChat" onclick="openChat()">💬 Chat Tim <span id="chatAlert" class="inv-alert hidden">0</span></button>
+    <button class="tb-btn chat-hot" id="btnChat" onclick="openChat()">💬 Chat Tim <span id="chatAlert" class="inv-alert hidden">0</span></button>
     <button class="tb-btn" id="btnClose" onclick="openClose()">🧾 Tutup Kas</button>
     <button class="tb-btn" id="btnHistory" onclick="openHistory()">📜 Riwayat</button>
     <button class="tb-btn" id="btnDebt" onclick="openDebt()">📒 Hutang <span id="debtAlert" class="inv-alert hidden">0</span></button>
