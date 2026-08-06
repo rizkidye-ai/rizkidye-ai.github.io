@@ -1405,7 +1405,7 @@ async function checkout(){
     const items=snapItems();
     busy=true;recalc();
     try{
-      const r=await run("createDebt",state.token,{name,phone:document.getElementById("debtPhone").value.trim(),note:document.getElementById("debtNote").value.trim(),items});
+      const r=await run("createDebt",state.token,{name,phone:document.getElementById("debtPhone").value.trim(),note:document.getElementById("debtNote").value.trim(),items,fromNo:cartMode==="edit"?editingTable:null});
       showReceipt({debt:true,items,sub:subtotal(),disc:0,total:tot,kasir:state.user.name,date:new Date(),cust:name});
       exitEdit();applyResult(r);toggleCart(false);toast("📒 Hutang dicatat · "+name);
     }catch(e){}finally{busy=false;recalc();}
