@@ -2177,6 +2177,7 @@ async function deleteExpenseC(id){const e=exData.find(x=>x.id===id);if(!confirm(
 /* ---------- LAPORAN ---------- */
 let rptFrom=null,rptTo=null,lastReport=null;
 function bizNow(){const c=(state.shop&&Number(state.shop.cutoff))||7;return new Date(Date.now()-c*3600000);} // hari usaha ganti jam 04:00
+function bizDayOf(d){const c=(state.shop&&Number(state.shop.cutoff))||7;return ymd(new Date(new Date(d).getTime()-c*3600000));}
 function dayStart(d){const x=new Date(d);x.setHours(0,0,0,0);return x;}
 function dayEnd(d){const x=new Date(d);x.setHours(23,59,59,999);return x;}
 function openReport(){if(!isAdmin()){toast("Akses Laporan khusus Admin/Owner");return;}document.getElementById("lap-neraca").classList.toggle("hidden",!isOwner());setLapView("jual");setReportPreset("bulan");document.getElementById("reportOverlay").classList.remove("hidden");}
@@ -2507,11 +2508,11 @@ function renderHistory(){
   if(!histRendered.length){box.innerHTML='<div style="text-align:center;color:#b3a999;padding:24px">Tidak ada transaksi.</div>';return;}
   const groups=[],gIdx={};
   histRendered.forEach((s,i)=>{
-    const k=ymd(s.datetime);
+    const k=bizDayOf(s.datetime);
     if(gIdx[k]===undefined){gIdx[k]=groups.length;groups.push({key:k,items:[]});}
     groups[gIdx[k]].items.push({s,i});
   });
-  const today=ymd(new Date()),yd=new Date();yd.setDate(yd.getDate()-1);const yesterday=ymd(yd);
+  const today=bizDayOf(new Date()),yd=new Date(today+"T00:00:00");yd.setDate(yd.getDate()-1);const yesterday=ymd(yd);
   const isAdm=isAdmin();
   box.innerHTML=groups.map(g=>{
     const label=g.key===today?"Hari ini":(g.key===yesterday?"Kemarin":idDate(new Date(g.key+"T00:00:00")));
