@@ -710,9 +710,12 @@
     <div class="sheet-body">
       <div class="user-form" style="border-color:var(--coffee)">
         <div class="grid2">
-          <div class="ff"><label>Kategori</label><select id="exCat">
+          <div class="ff"><label>Kategori</label><select id="exCat" onchange="expCatChanged()">
             <option>Belanja Stok</option><option>Operasional</option><option>Gaji Karyawan</option>
-            <option>Sewa Tempat</option><option>Listrik &amp; Air</option><option>Tabungan Gas</option><option>Tabungan Listrik</option><option>Tabungan</option><option>Lain-lain</option></select></div>
+            <option>Uang Makan Karyawan</option><option>Galon Air &amp; Gas</option>
+            <option>Sewa Tempat</option><option>Listrik &amp; Air</option><option>Tabungan Gas</option><option>Tabungan Listrik</option><option>Tabungan</option><option>Lain-lain</option>
+            <option value="__custom__">✏️ Kategori lain (tulis sendiri)</option></select>
+            <input id="exCatCustom" class="hidden" placeholder="Nama kategori baru, cth: Parkir" style="margin-top:6px"></div>
           <div class="ff"><label>Tanggal</label><input id="exDate" type="date"></div>
         </div>
         <div class="ff"><label>Jenis Pengeluaran</label><select id="exType"><option>Harian</option><option>Bulanan</option></select></div>
@@ -2274,7 +2277,7 @@ async function saveCapitalC(){
 
 /* ---------- PENGELUARAN ---------- */
 let exFrom=null,exTo=null,exEditId=null,exData=[];
-const EXP_COLORS={"Belanja Stok":"#e8590c","Operasional":"#3b6fd6","Gaji Karyawan":"#7048e8","Sewa Tempat":"#2f9e44","Listrik & Air":"#d6336c","Tabungan Gas":"#fd7e14","Tabungan Listrik":"#fab005","Tabungan":"#0ca678","Lain-lain":"#868e96"};
+const EXP_COLORS={"Belanja Stok":"#e8590c","Operasional":"#3b6fd6","Gaji Karyawan":"#7048e8","Uang Makan Karyawan":"#ae3ec9","Galon Air & Gas":"#1098ad","Sewa Tempat":"#2f9e44","Listrik & Air":"#d6336c","Tabungan Gas":"#fd7e14","Tabungan Listrik":"#fab005","Tabungan":"#0ca678","Lain-lain":"#868e96"};
 function openExpense(){if(!isAdmin()){toast("Akses Pengeluaran khusus Admin/Owner");return;}resetExpenseForm();document.getElementById("exDate").value=bizYmd(new Date());setExpPreset("bulan");document.getElementById("expenseOverlay").classList.remove("hidden");}
 function setExpPreset(p){
   const now=new Date();["hari","bulan","custom"].forEach(x=>document.getElementById("ex-"+x).classList.toggle("on",x===p));
@@ -2323,12 +2326,24 @@ function renderExpenses(){
   if(dBulanan.length)h+=`<h4 class="rpt-sec" style="margin:14px 0 6px">📦 Belanja Bulanan — ${rp(tB)}</h4>`+dBulanan.map(rowH).join("");
   box.innerHTML=h;
 }
-function readExpForm(){return{cat:document.getElementById("exCat").value,date:document.getElementById("exDate").value,
+function expCatChanged(){
+  const custom=document.getElementById("exCat").value==="__custom__";
+  document.getElementById("exCatCustom").classList.toggle("hidden",!custom);
+  if(custom)document.getElementById("exCatCustom").focus();
+}
+function readExpForm(){
+  const sel=document.getElementById("exCat").value;
+  const cat=sel==="__custom__"?document.getElementById("exCatCustom").value.trim():sel;
+  return{cat:cat,date:document.getElementById("exDate").value,
   name:document.getElementById("exName").value.trim(),amount:parseFloat(document.getElementById("exAmount").value)||0,
   note:document.getElementById("exNote").value.trim(),type:document.getElementById("exType").value};}
-function resetExpenseForm(){exEditId=null;document.getElementById("exName").value="";document.getElementById("exAmount").value="";document.getElementById("exNote").value="";document.getElementById("exDate").value=bizYmd(new Date());document.getElementById("exType").value="Harian";document.getElementById("exSaveBtn").textContent="💾 Simpan Pengeluaran";}
+function resetExpenseForm(){exEditId=null;document.getElementById("exName").value="";document.getElementById("exAmount").value="";document.getElementById("exNote").value="";document.getElementById("exDate").value=bizYmd(new Date());document.getElementById("exType").value="Harian";
+  if(document.getElementById("exCat").value==="__custom__"){document.getElementById("exCat").value="Belanja Stok";document.getElementById("exCatCustom").classList.add("hidden");}
+  document.getElementById("exCatCustom").value="";
+  document.getElementById("exSaveBtn").textContent="💾 Simpan Pengeluaran";}
 async function saveExpense(){
   const f=readExpForm();
+  if(!f.cat){toast("Isi nama kategorinya dulu");return;}
   if(!f.name){toast("Isi keterangan dulu");return;}
   if(!(f.amount>0)){toast("Jumlah harus lebih dari 0");return;}
   try{
@@ -2339,7 +2354,17 @@ async function saveExpense(){
 }
 function editExpense(id){
   const e=exData.find(x=>x.id===id);if(!e)return;exEditId=id;
-  document.getElementById("exCat").value=e.cat;document.getElementById("exDate").value=ymd(e.date);
+  const catSel=document.getElementById("exCat");
+  catSel.value=e.cat;
+  if(catSel.value!==e.cat){ // kategori lama tidak ada di daftar preset -> mode tulis sendiri
+    catSel.value="__custom__";
+    document.getElementById("exCatCustom").value=e.cat;
+    document.getElementById("exCatCustom").classList.remove("hidden");
+  }else{
+    document.getElementById("exCatCustom").value="";
+    document.getElementById("exCatCustom").classList.add("hidden");
+  }
+  document.getElementById("exDate").value=ymd(e.date);
   document.getElementById("exName").value=e.name;document.getElementById("exAmount").value=e.amount;document.getElementById("exNote").value=e.note;document.getElementById("exType").value=e.type||"Harian";
   document.getElementById("exSaveBtn").textContent="💾 Update Pengeluaran";
   document.getElementById("expenseOverlay").querySelector(".sheet-body").scrollTop=0;
