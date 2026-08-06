@@ -506,6 +506,22 @@ const API = {
     return { ok:true };
   },
 
+  async savePushSubscription(token, sub){
+    const u = requireUser(token);
+    if (!sub || !sub.endpoint || !sub.keys) throw new Error('Subscription tidak valid.');
+    need(( await db.from('push_subscriptions').upsert(
+      { user_name:u.name, endpoint:sub.endpoint, p256dh:sub.keys.p256dh, auth:sub.keys.auth },
+      { onConflict:'endpoint' }
+    ) ).error);
+    return { ok:true };
+  },
+
+  async removePushSubscription(token, endpoint){
+    requireUser(token);
+    need(( await db.from('push_subscriptions').delete().eq('endpoint', String(endpoint||'')) ).error);
+    return { ok:true };
+  },
+
   /* ================= RIWAYAT & REFUND ================= */
 
   async getSalesHistory(token, fromYmd, toYmd){
