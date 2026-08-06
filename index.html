@@ -2365,6 +2365,17 @@ function applyCustomRange(){
   rptFrom=dayStart(a);rptTo=dayEnd(b);["hari","kemarin","bulan","bulanlalu","tahunlalu","custom"].forEach(x=>document.getElementById("rp-"+x).classList.toggle("on",x==="custom"));loadReport();
 }
 function rangeText(){return ymd(rptFrom)===ymd(rptTo)?idDate(rptFrom):idDate(rptFrom)+" — "+idDate(rptTo);}
+function cashflowDiffParts(P){
+  const parts=[];
+  if(P&&P.tabungan>0)parts.push("Tabungan "+rp(P.tabungan));
+  if(P&&P.prive>0)parts.push("Prive "+rp(P.prive));
+  return parts;
+}
+function cashflowDiffNote(P,net){
+  const parts=cashflowDiffParts(P);
+  if(!parts.length)return "";
+  return `<div style="font-size:11px;color:#9b9081;margin:-4px 0 10px">ℹ️ Cashflow Bersih (${rp(net)}) ≠ Laba Bersih (${rp(P.labaBersih)}) karena ada ${parts.join(" + ")} — itu bukan biaya usaha (uang kamu sendiri yang dipindah/diambil), jadi tidak dikurangkan dari Laba Bersih.</div>`;
+}
 async function loadReport(){
   document.getElementById("rptRangeLabel").textContent="📅 Periode: "+rangeText()+" — memuat...";
   try{state.debts=await run("getDebts",state.token);updateDebtBadge();}catch(e){}
@@ -2415,6 +2426,7 @@ function renderReport(d){
     +`</table><div style="font-size:11px;color:#9b9081;margin-top:6px">*HPP diperkirakan dari total belanja stok periode ini (bukan pemakaian bahan sebenarnya), jadi Laba Kotor bersifat perkiraan. Penjualan dipisah otomatis: kategori Makanan = makanan, lainnya = minuman.</div></div>`;
   let h=labaRugi+`<div class="rpt-cards"><div class="rpt-card"><div class="v">${rp(d.omzet)}</div><div class="l">Omzet</div></div><div class="rpt-card"><div class="v">${d.count}</div><div class="l">Transaksi</div></div><div class="rpt-card"><div class="v">${rp(d.avg)}</div><div class="l">Rata-rata/transaksi</div></div><div class="rpt-card"><div class="v">${rp(d.disc)}</div><div class="l">Total Diskon</div></div></div>`;
   h+=`<div class="rpt-flow"><div class="fc fc-in"><div class="v">${rp(d.omzet)}</div><div class="l">Pemasukan (penjualan)</div></div><div class="fc fc-out"><div class="v">${rp(d.pengeluaran)}</div><div class="l">Pengeluaran</div></div><div class="fc fc-net"><div class="v">${rp(net)}</div><div class="l">Cashflow Bersih</div></div></div>`;
+  h+=cashflowDiffNote(P,net);
   const _daily=(d.daily||[]).slice().reverse().map(x=>({label:idDate(new Date(x.d+"T00:00:00")).slice(0,5),value:x.omzet}));
   const _mon=(d.months||[]).slice().reverse();
   h+=`<div class="rpt-sec"><h4>📈 Tren Penjualan Harian</h4>${miniBars(_daily,'#8a6d4f')}</div>`;
@@ -2439,7 +2451,7 @@ function renderReport(d){
   h+=`<div class="rpt-sec"><h4>Rekap Harian</h4><table class="rpt-table"><tr><th>Tanggal</th><th class="num">Transaksi</th><th class="num">Omzet</th></tr>`;
   h+=d.daily.length?d.daily.map(x=>`<tr><td>${idDate(new Date(x.d+"T00:00:00"))}</td><td class="num">${x.count}</td><td class="num">${rp(x.omzet)}</td></tr>`).join(""):`<tr><td colspan="3" class="rpt-empty">—</td></tr>`;h+=`</table></div>`;
   h+=`<div class="rpt-sec"><h4>Pendapatan per Bulan (6 bulan terakhir)</h4><table class="rpt-table"><tr><th>Bulan</th><th class="num">Pemasukan</th><th class="num">Pengeluaran</th><th class="num">Bersih</th></tr>`;
-  h+=d.months.map(m=>`<tr><td>${monthLabel(m.k)}</td><td class="num">${rp(m.omzet)}</td><td class="num">${rp(m.exp)}</td><td class="num">${rp(m.omzet-m.exp)}</td></tr>`).join("");h+=`</table></div>`;
+  h+=d.months.map(m=>{const rugi=m.omzet-m.exp<0;return `<tr${rugi?' style="background:#ffe9e9"':''}><td>${monthLabel(m.k)}${rugi?' ⚠️':''}</td><td class="num">${rp(m.omzet)}</td><td class="num">${rp(m.exp)}</td><td class="num" style="color:${rugi?'#e03131':'inherit'}">${rp(m.omzet-m.exp)}</td></tr>`;}).join("");h+=`</table></div>`;
   const _bk=d.byKasir||[];
   h+=`<div class="rpt-sec"><h4>👥 Penjualan per Kasir</h4><table class="rpt-table"><tr><th>Kasir</th><th class="num">Transaksi</th><th class="num">Rata-rata</th><th class="num">Omzet</th></tr>`
     +(_bk.length?_bk.map(k=>`<tr><td>${k.name}</td><td class="num">${k.count}</td><td class="num">${rp(k.avg)}</td><td class="num">${rp(k.omzet)}</td></tr>`).join(""):`<tr><td colspan="4" class="rpt-empty">Belum ada penjualan di periode ini.</td></tr>`)
@@ -2482,6 +2494,7 @@ function exportPDF(){
   b+=`<div class="cards">${card(rp(d.omzet),"Omzet")}${card(d.count,"Transaksi")}${card(rp(d.avg),"Rata-rata")}${card(rp(d.disc),"Diskon")}</div>`;
   b+=`<div class="cards">${card(rp(d.omzet),"Pemasukan")}${card(rp(d.pengeluaran),"Pengeluaran")}${card(rp(net),"Cashflow Bersih")}</div>`;
   const _P=d.pnl||{revMinuman:0,revMakanan:0,disc:0,netSales:d.omzet,hpp:0,labaKotor:d.omzet,opCats:{},totalOp:d.pengeluaran,labaBersih:net};
+  b+=cashflowDiffNote(_P,net).replace('font-size:11px;color:#9b9081;','font-size:10px;color:#666;');
   const _pok=Object.keys(_P.opCats).sort((a,b)=>_P.opCats[b]-_P.opCats[a]);
   b+=`<h3>Laporan Laba Rugi</h3><table>`
     +`<tr><td colspan="2"><b>PENDAPATAN</b></td></tr>`
@@ -2503,13 +2516,21 @@ function exportPDF(){
   const _slP=d.slow||[];if(_slP.length){b+=`<h3>Paling Tidak Laris</h3><table><tr><th>Produk</th><th class="n">Terjual</th><th class="n">Omzet</th></tr>${_slP.map(p=>`<tr><td>${p.name}</td><td class="n">${p.qty}</td><td class="n">${rp(p.rev)}</td></tr>`).join("")}</table>`;}
   const _mlP=d.mitraList||[];if(_mlP.length){b+=`<h3>Titipan Mitra (bukan pendapatan)</h3><table><tr><th>Mitra</th><th class="n">Nilai</th><th class="n">Dibayar (bulat)</th></tr>${_mlP.map(m=>`<tr><td>${m.name}</td><td class="n">${rp(m.total)}</td><td class="n">${rp(m.pay)}</td></tr>`).join("")}<tr><td><b>Total Setoran</b></td><td></td><td class="n"><b>${rp(d.titipanMitraPay||0)}</b></td></tr></table>`;}
   b+=`<h3>Rekap Harian</h3><table><tr><th>Tanggal</th><th class="n">Transaksi</th><th class="n">Omzet</th></tr>${d.daily.map(x=>`<tr><td>${idDate(new Date(x.d+"T00:00:00"))}</td><td class="n">${x.count}</td><td class="n">${rp(x.omzet)}</td></tr>`).join("")||'<tr><td colspan=3>—</td></tr>'}</table>`;
-  b+=`<h3>Pendapatan per Bulan</h3><table><tr><th>Bulan</th><th class="n">Pemasukan</th><th class="n">Pengeluaran</th><th class="n">Bersih</th></tr>${d.months.map(m=>`<tr><td>${monthLabel(m.k)}</td><td class="n">${rp(m.omzet)}</td><td class="n">${rp(m.exp)}</td><td class="n">${rp(m.omzet-m.exp)}</td></tr>`).join("")}</table>`;
+  b+=`<h3>Pendapatan per Bulan</h3><table><tr><th>Bulan</th><th class="n">Pemasukan</th><th class="n">Pengeluaran</th><th class="n">Bersih</th></tr>${d.months.map(m=>{const rugi=m.omzet-m.exp<0;return `<tr${rugi?' style="background:#ffe9e9"':''}><td>${monthLabel(m.k)}${rugi?' ⚠️':''}</td><td class="n">${rp(m.omzet)}</td><td class="n">${rp(m.exp)}</td><td class="n">${rp(m.omzet-m.exp)}</td></tr>`;}).join("")}</table>`;
   const _bk=d.byKasir||[];
   b+=`<h3>Penjualan per Kasir</h3><table><tr><th>Kasir</th><th class="n">Transaksi</th><th class="n">Rata-rata</th><th class="n">Omzet</th></tr>${_bk.length?_bk.map(k=>`<tr><td>${k.name}</td><td class="n">${k.count}</td><td class="n">${rp(k.avg)}</td><td class="n">${rp(k.omzet)}</td></tr>`).join(""):'<tr><td colspan=4>—</td></tr>'}</table>`;
   
   const doc=`<html><head><meta charset="utf-8"><title>Laporan 3 Rakan Kupi</title><style>${css}</style></head><body>${b}<script>window.onload=function(){setTimeout(function(){window.print();},300);}<\/script></body></html>`;
   const w=window.open("","_blank","width=820,height=900");if(!w){toast("Popup diblokir — izinkan popup untuk cetak/PDF");return;}
   w.document.open();w.document.write(doc);w.document.close();
+}
+function pdfNote(doc,y,text){
+  if(!text)return y;
+  if(y>750){doc.addPage();y=44;}
+  doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(130);
+  const lines=doc.splitTextToSize(text,515);
+  doc.text(lines,40,y);
+  return y+lines.length*10+10;
 }
 function pdfSection(doc,y,title,head,rows,opts){
   if(y>760){doc.addPage();y=44;}
@@ -2537,6 +2558,7 @@ function downloadReportPDF(){
   ],{columnStyles:{1:{halign:"right"}}});
 
   const _P=d.pnl||{revMinuman:0,revMakanan:0,disc:0,netSales:d.omzet,hpp:0,labaKotor:d.omzet,opCats:{},totalOp:d.pengeluaran,labaBersih:net};
+  y=pdfNote(doc,y,cashflowDiffParts(_P).length?("Cashflow Bersih ("+rp(net)+") beda dengan Laba Bersih ("+rp(_P.labaBersih)+") karena ada "+cashflowDiffParts(_P).join(" + ")+" — itu bukan biaya usaha, jadi tidak dikurangkan dari Laba Bersih."):"");
   const _pok=Object.keys(_P.opCats).sort((a,b)=>_P.opCats[b]-_P.opCats[a]);
   const plRows=[
     ["Penjualan Minuman",rp(_P.revMinuman)],["Penjualan Makanan",rp(_P.revMakanan)],
@@ -2549,6 +2571,7 @@ function downloadReportPDF(){
   plRows.push(["Total Beban Operasional","("+rp(_P.totalOp)+")"]);
   plRows.push(["LABA BERSIH",rp(_P.labaBersih)]);
   y=pdfSection(doc,y,"Laporan Laba Rugi",["Uraian","Jumlah"],plRows,{columnStyles:{1:{halign:"right"}}});
+  y=pdfNote(doc,y,"*HPP diperkirakan dari total belanja stok periode ini (bukan pemakaian bahan sebenarnya), jadi Laba Kotor & Laba Bersih bersifat perkiraan.");
 
   const ecp=d.expByCat||{};
   if(Object.keys(ecp).length)y=pdfSection(doc,y,"Rincian Pengeluaran",["Kategori","Jumlah"],
@@ -2576,7 +2599,7 @@ function downloadReportPDF(){
     d.daily.map(x=>[idDate(new Date(x.d+"T00:00:00")),String(x.count),rp(x.omzet)]),{columnStyles:{1:{halign:"right"},2:{halign:"right"}}});
 
   y=pdfSection(doc,y,"Pendapatan per Bulan",["Bulan","Pemasukan","Pengeluaran","Bersih"],
-    d.months.map(m=>[monthLabel(m.k),rp(m.omzet),rp(m.exp),rp(m.omzet-m.exp)]),{columnStyles:{1:{halign:"right"},2:{halign:"right"},3:{halign:"right"}}});
+    d.months.map(m=>[monthLabel(m.k)+(m.omzet-m.exp<0?" ⚠️ RUGI":""),rp(m.omzet),rp(m.exp),rp(m.omzet-m.exp)]),{columnStyles:{1:{halign:"right"},2:{halign:"right"},3:{halign:"right"}}});
 
   const _bk=d.byKasir||[];
   y=pdfSection(doc,y,"Penjualan per Kasir",["Kasir","Transaksi","Rata-rata","Omzet"],
