@@ -2785,8 +2785,8 @@ function renderCloseSummary(){
   h+=Object.keys(bm).length?Object.keys(bm).map(m=>`<tr><td>${m}</td><td class="num">${rp(bm[m])}</td></tr>`).join(""):`<tr><td colspan=2 class="rpt-empty">Belum ada penjualan hari ini</td></tr>`;
   h+=`<tr><td>Pengeluaran harian (dari laci)</td><td class="num" style="color:#e03131">- ${rp(s.expenses)}</td></tr>`;
   if(s.expensesBulanan>0)h+=`<tr><td>Belanja bulanan (tidak dari laci)</td><td class="num" style="color:#9b9081">${rp(s.expensesBulanan)}</td></tr>`;
-  const tbm=s.titipanByMitra||{},tpm=s.titipanPayByMitra||tbm;
-  Object.keys(tpm).forEach(m=>h+=`<tr><td>Setor ke ${m}<div style="font-size:10.5px;color:#9b9081">sistem: ${rp(tpm[m])} — ubah sesuai hitungan fisik</div></td><td class="num"><input type="number" class="mitraPayInp" data-mitra="${m}" value="${tpm[m]}" min="0" style="width:110px;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;text-align:right;font-weight:700" oninput="recalcClose()"></td></tr>`);
+  const tbm=s.titipanByMitra||{},tpm=s.titipanPayByMitra||tbm,tqm=s.titipanQtyByMitra||{};
+  Object.keys(tpm).forEach(m=>h+=`<tr><td>Setor ke ${m}<div style="font-size:10.5px;color:#9b9081">sistem: ${rp(tpm[m])}${tqm[m]!=null?" · "+tqm[m]+" pcs terjual":""} — ubah sesuai hitungan fisik</div></td><td class="num"><input type="number" class="mitraPayInp" data-mitra="${m}" value="${tpm[m]}" min="0" style="width:110px;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;text-align:right;font-weight:700" oninput="recalcClose()"></td></tr>`);
   h+=`</table>`;
   if(Object.keys(tpm).length)h+=`<div style="background:#efe7db;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:#6f5836">🤝 Isi kolom setoran sesuai <b>hitungan fisik bersama mitra</b> (bawa − sisa). Selisih dari catatan sistem otomatis dicatat sebagai traktir/tak tercatat.</div>`;
   document.getElementById("closeSummary").innerHTML=h;

@@ -408,8 +408,9 @@ const API = {
       else { const m=s.method||'Lainnya'; byMethod[m]=(byMethod[m]||0)+t; }
     });
     const prodM = {}; (prodRes.data||[]).forEach(p => { const m=String(p.mitra||'').trim(); if(m) prodM[String(p.id)]={m:m,c:Number(p.mitra_cost)||0}; });
-    const titipanByMitra = {};
-    sales.forEach(s => (s.items||[]).forEach(it => { const pm=prodM[String(it.id)]; if(pm){ const per=pm.c>0?pm.c:Number(it.price); titipanByMitra[pm.m]=(titipanByMitra[pm.m]||0)+Number(it.qty)*per; } }));
+    const titipanByMitra = {}, titipanQtyByMitra = {};
+    sales.forEach(s => (s.items||[]).forEach(it => { const pm=prodM[String(it.id)]; if(pm){ const per=pm.c>0?pm.c:Number(it.price);
+      titipanByMitra[pm.m]=(titipanByMitra[pm.m]||0)+Number(it.qty)*per; titipanQtyByMitra[pm.m]=(titipanQtyByMitra[pm.m]||0)+Number(it.qty); } }));
     const titipanPayByMitra = {}; let titipanMitra = 0;
     Object.keys(titipanByMitra).forEach(m => { titipanPayByMitra[m]=roundRibuan(titipanByMitra[m]); titipanMitra+=titipanPayByMitra[m]; });
     const expRows = (expRes.data||[]).filter(e => e.date && dcal(e.date)===day);
@@ -420,7 +421,7 @@ const API = {
     const openingFloat = coRes.data ? (Number(coRes.data.opening)||0) : null;
     return { date:day, count:sales.length, total:total, byMethod:byMethod, cashSales:byMethod['Tunai']||0,
       expenses:expenses, expensesBulanan:expensesBulanan, closed:closed, openingFloat:openingFloat,
-      titipanMitra:titipanMitra, titipanByMitra:titipanByMitra, titipanPayByMitra:titipanPayByMitra };
+      titipanMitra:titipanMitra, titipanByMitra:titipanByMitra, titipanPayByMitra:titipanPayByMitra, titipanQtyByMitra:titipanQtyByMitra };
   },
 
   async openShiftCash(token, payload){
