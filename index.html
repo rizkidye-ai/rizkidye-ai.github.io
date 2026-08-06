@@ -453,7 +453,6 @@
         <div class="mgrp g-operasi">
           <div class="mgrp-label">Operasi</div>
           <button class="tb-btn" onclick="openKasC()"><span class="mi-ico">💰</span><span class="mi-lbl">Buka Kas</span></button>
-          <button class="tb-btn" id="btnChat" onclick="openChat()"><span class="mi-ico">💬</span><span class="mi-lbl">Chat Tim <span id="chatAlert" class="inv-alert hidden">0</span></span></button>
           <button class="tb-btn" onclick="openKasKeluar()"><span class="mi-ico">📤</span><span class="mi-lbl">Rekap Kas Keluar</span></button>
           <button class="tb-btn" id="btnConsume" onclick="openConsume()"><span class="mi-ico">🍵</span><span class="mi-lbl">Konsumsi</span></button>
           <!-- FULLSCREEN-START (hapus sampai FULLSCREEN-END jika tidak berfungsi) -->
@@ -498,6 +497,7 @@
     <div class="meta"><span id="hdrUser">Kasir</span><span id="hdrClock">—</span></div>
     <div class="spacer"></div>
     <button class="tb-btn meja" onclick="openMeja()"><span class="dot"></span>🍽️ Meja: <span id="mejaCount">0</span> · <span id="mejaTotal">Rp 0</span></button>
+    <button class="tb-btn" id="btnChat" onclick="openChat()">💬 Chat Tim <span id="chatAlert" class="inv-alert hidden">0</span></button>
     <button class="tb-btn" id="btnClose" onclick="openClose()">🧾 Tutup Kas</button>
     <button class="tb-btn" id="btnHistory" onclick="openHistory()">📜 Riwayat</button>
     <button class="tb-btn" id="btnDebt" onclick="openDebt()">📒 Hutang <span id="debtAlert" class="inv-alert hidden">0</span></button>
