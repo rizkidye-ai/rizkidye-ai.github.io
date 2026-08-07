@@ -734,7 +734,7 @@
         </div>
         <div class="uf-actions">
           <button style="background:var(--success)" id="exSaveBtn" onclick="saveExpense()">💾 Simpan Pengeluaran</button>
-          <button style="background:#9b9081" id="exCancelBtn" onclick="resetExpenseForm()">Batal</button>
+          <button style="background:#9b9081" id="exCancelBtn" onclick="cancelExpenseEdit()">Batal</button>
         </div>
       </div>
 
@@ -2285,7 +2285,7 @@ async function saveCapitalC(){
 }
 
 /* ---------- PENGELUARAN ---------- */
-let exFrom=null,exTo=null,exEditId=null,exData=[];
+let exFrom=null,exTo=null,exEditId=null,exData=[],exScrollBeforeEdit=null;
 const EXP_COLORS={"Belanja Stok":"#e8590c","Operasional":"#3b6fd6","Gaji Karyawan":"#7048e8","Uang Makan Karyawan":"#ae3ec9","Galon Air":"#1098ad","Gas":"#f08c00","Sewa Tempat":"#2f9e44","Listrik & Air":"#d6336c","Tabungan Gas":"#fd7e14","Tabungan Listrik":"#fab005","Tabungan":"#0ca678","Lain-lain":"#868e96"};
 function openExpense(){if(!isAdmin()){toast("Akses Pengeluaran khusus Admin/Owner");return;}resetExpenseForm();document.getElementById("exDate").value=bizYmd(new Date());setExpPreset("bulan");document.getElementById("expenseOverlay").classList.remove("hidden");}
 function setExpPreset(p){
@@ -2411,9 +2411,12 @@ async function saveExpense(){
   if(!f.name){toast("Isi keterangan dulu");return;}
   if(!(f.amount>0)){toast("Jumlah harus lebih dari 0");return;}
   try{
+    const wasEdit=!!exEditId;
     if(exEditId)await run("updateExpense",state.token,exEditId,f);
     else await run("addExpense",state.token,f);
-    resetExpenseForm();await loadExpenses();toast("Pengeluaran tersimpan");
+    resetExpenseForm();await loadExpenses();
+    if(wasEdit)restoreExpenseScroll();
+    toast("Pengeluaran tersimpan");
   }catch(e){}
 }
 function editExpense(id){
@@ -2424,9 +2427,16 @@ function editExpense(id){
   document.getElementById("exDate").value=ymd(e.date);
   document.getElementById("exName").value=e.name;document.getElementById("exAmount").value=e.amount;document.getElementById("exNote").value=e.note;document.getElementById("exType").value=e.type||"Harian";
   document.getElementById("exSaveBtn").textContent="💾 Update Pengeluaran";
+  exScrollBeforeEdit=document.getElementById("expenseOverlay").querySelector(".sheet-body").scrollTop;
   document.getElementById("expenseOverlay").querySelector(".sheet-body").scrollTop=0;
   toast("Mengedit: "+e.name);
 }
+function restoreExpenseScroll(){
+  if(exScrollBeforeEdit==null)return;
+  document.getElementById("expenseOverlay").querySelector(".sheet-body").scrollTop=exScrollBeforeEdit;
+  exScrollBeforeEdit=null;
+}
+function cancelExpenseEdit(){resetExpenseForm();restoreExpenseScroll();}
 async function deleteExpenseC(id){const e=exData.find(x=>x.id===id);if(!confirm("Hapus pengeluaran \""+(e?e.name:'')+"\"?"))return;try{await run("deleteExpense",state.token,id);if(exEditId===id)resetExpenseForm();await loadExpenses();toast("Pengeluaran dihapus");}catch(e){}}
 
 /* ---------- LAPORAN ---------- */
