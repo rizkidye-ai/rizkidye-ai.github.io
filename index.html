@@ -2062,7 +2062,7 @@ function setInvTab(t){
 /* ---- Laporan Stok (tab Inventory) ---- */
 let srFrom=null,srTo=null,srData=[];
 function setStockPreset(p){
-  const now=new Date();["hari","bulan","custom"].forEach(x=>document.getElementById("sr-"+x).classList.toggle("on",x===p));
+  const now=bizNow();["hari","bulan","custom"].forEach(x=>document.getElementById("sr-"+x).classList.toggle("on",x===p));
   document.getElementById("srCustom").classList.toggle("hidden",p!=="custom");
   if(p==="hari"){srFrom=dayStart(now);srTo=dayEnd(now);}
   else if(p==="bulan"){srFrom=dayStart(new Date(now.getFullYear(),now.getMonth(),1));srTo=dayEnd(now);}
@@ -2289,7 +2289,7 @@ let exFrom=null,exTo=null,exEditId=null,exData=[],exScrollBeforeEdit=null;
 const EXP_COLORS={"Belanja Stok":"#e8590c","Operasional":"#3b6fd6","Gaji Karyawan":"#7048e8","Uang Makan Karyawan":"#ae3ec9","Galon Air":"#1098ad","Gas":"#f08c00","Sewa Tempat":"#2f9e44","Listrik & Air":"#d6336c","Tabungan Gas":"#fd7e14","Tabungan Listrik":"#fab005","Tabungan":"#0ca678","Lain-lain":"#868e96"};
 function openExpense(){if(!isAdmin()){toast("Akses Pengeluaran khusus Admin/Owner");return;}resetExpenseForm();document.getElementById("exDate").value=bizYmd(new Date());setExpPreset("bulan");document.getElementById("expenseOverlay").classList.remove("hidden");}
 function setExpPreset(p){
-  const now=new Date();["hari","bulan","custom"].forEach(x=>document.getElementById("ex-"+x).classList.toggle("on",x===p));
+  const now=bizNow();["hari","bulan","custom"].forEach(x=>document.getElementById("ex-"+x).classList.toggle("on",x===p));
   document.getElementById("exCustom").classList.toggle("hidden",p!=="custom");
   if(p==="hari"){exFrom=dayStart(now);exTo=dayEnd(now);}
   else if(p==="bulan"){exFrom=dayStart(new Date(now.getFullYear(),now.getMonth(),1));exTo=dayEnd(now);}
