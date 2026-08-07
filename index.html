@@ -1257,6 +1257,7 @@ function applyResult(r){
   if(isOpen("invOverlay")){renderInvSummary();renderInvList();if(invSelId&&prod(invSelId))showInvDetail(invSelId);else document.getElementById("invDetail").innerHTML="";}
   if(isOpen("prodOverlay"))renderProdMgmt();
   if(isOpen("userOverlay"))renderUsers();
+  if(isOpen("historyOverlay"))loadHistory();
 }
 function renderAll(){renderProducts();renderCart();renderMejaSummary();refreshMejaPicker();updateInvAlert();}
 
