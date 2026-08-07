@@ -16,6 +16,23 @@ const db = _cc(SUPA_URL, SUPA_KEY);
 /* ---------- helper ---------- */
 const SESSION = {};
 
+/* ambil SEMUA baris sebuah tabel lewat beberapa halaman (Supabase batasi 1000 baris/query) --
+   dipakai kalau butuh total/rekap dari SELURUH histori, bukan cuma rentang tanggal tertentu */
+async function fetchAllRows(table, columns, filterFn){
+  let all = [], from = 0; const pageSize = 1000;
+  while (true) {
+    let q = db.from(table).select(columns).range(from, from + pageSize - 1);
+    if (filterFn) q = filterFn(q);
+    const { data, error } = await q;
+    if (error) throw error;
+    if (!data || !data.length) break;
+    all = all.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return all;
+}
+
 async function hashPin(id, pin){
   const txt = PEPPER + ':' + id + ':' + pin;
   const buf = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
@@ -40,6 +57,15 @@ function bizYmd(d){
   const x = bizShift(d);
   const p = n => String(n).padStart(2,'0');
   return x.getFullYear()+'-'+p(x.getMonth()+1)+'-'+p(x.getDate());
+}
+/* rentang tanggal usaha (fromYmd..toYmd, inklusif) -> batas waktu UTC asli buat filter query di server
+   (supaya query tidak perlu ambil SEMUA baris sales lalu saring di JS -- itu yang bikin data ke-potong
+   diam-diam begitu tabelnya lebih dari 1000 baris, batas otomatis Supabase) */
+function bizRangeUtcBounds(fromYmd, toYmd){
+  const start = new Date(new Date(fromYmd+'T00:00:00').getTime() + CUTOFF*3600000);
+  const toNext = new Date(toYmd+'T00:00:00'); toNext.setDate(toNext.getDate()+1);
+  const end = new Date(toNext.getTime() + CUTOFF*3600000);
+  return { start: start.toISOString(), end: end.toISOString() };
 }
 
 /* produk: stok & modal ikut INDUK (Milo Es/Panas satu sachet) */
@@ -409,15 +435,15 @@ const API = {
     requireUser(token);
     const day = ymdStr || bizYmd(new Date());
     const dcal = d => { const x=new Date(d); const p=n=>String(n).padStart(2,'0'); return x.getFullYear()+'-'+p(x.getMonth()+1)+'-'+p(x.getDate()); };
-    const [salesRes, prodRes, expRes, ccRes, coRes] = await Promise.all([
-      db.from('sales').select('*'),
+    const { start, end } = bizRangeUtcBounds(day, day);
+    const [salesData, prodRes, expRes, ccRes, coRes] = await Promise.all([
+      fetchAllRows('sales', '*', q => q.gte('datetime', start).lt('datetime', end)),
       db.from('products').select('id,price,mitra,mitra_cost'),
       db.from('expenses').select('*'),
       db.from('cash_close').select('*').eq('date', day),
       db.from('cash_open').select('*').eq('date', day).maybeSingle()
     ]);
-    need(salesRes.error);
-    const sales = (salesRes.data||[]).filter(s => s.datetime && bizYmd(s.datetime)===day);
+    const sales = (salesData||[]).filter(s => s.datetime && bizYmd(s.datetime)===day);
     const byMethod = {}; let total = 0;
     sales.forEach(s => { const t=Number(s.total)||0; total+=t;
       const mix = (String(s.method)==='Campur' && s.mix) ? s.mix : null;
@@ -529,8 +555,8 @@ const API = {
 
   async getSalesHistory(token, fromYmd, toYmd){
     requireUser(token);
-    const { data, error } = await db.from('sales').select('*');
-    need(error);
+    const { start, end } = bizRangeUtcBounds(fromYmd, toYmd);
+    const data = await fetchAllRows('sales', '*', q => q.gte('datetime', start).lt('datetime', end));
     const list = (data||[]).filter(s => s.datetime).map(s => ({
       no:String(s.no), datetime:new Date(s.datetime).getTime(), kasir:s.kasir||'', table:s.table||'',
       method:(function(){ if(String(s.method)==='Campur' && s.mix){ const ks=Object.keys(s.mix);
@@ -1048,13 +1074,12 @@ const API = {
   async getBalanceSheet(token){
     const u = requireUser(token);
     if (!/owner/i.test(u.role)) throw new Error('Khusus Owner.');
-    const [sRes, dRes, pRes, aRes, salesRes, expRes] = await Promise.all([
+    const [sRes, dRes, pRes, aRes, allSales, allExp] = await Promise.all([
       db.from('settings').select('*'), db.from('debts').select('total,paid'),
       db.from('products').select('stock,cost,stok_induk'), db.from('assets').select('*'),
-      db.from('sales').select('total'), db.from('expenses').select('amount,cat')
+      fetchAllRows('sales', 'total'), fetchAllRows('expenses', 'amount,cat')
     ]);
     const set={}; (sRes.data||[]).forEach(s=>set[s.key]=s.value); const num=k=>Number(set[k])||0;
-    const allExp = expRes.data||[];
     const priveCat = allExp.filter(x=>String(x.cat)==='Prive (Ambil Pemilik)').reduce((s,x)=>s+(Number(x.amount)||0),0);
     const kas=num('cap_kas'), bank=num('cap_bank');
     const modal=num('cap_modalAwal')+num('cap_setoran');
@@ -1067,7 +1092,7 @@ const API = {
       if(!a.buy_date){ asetTetap+=p; return; }
       const yrs=(now-new Date(a.buy_date).getTime())/(365.25*86400000);
       const acc=Math.min(p,(l>0?(p/l):0)*Math.max(0,yrs)); asetTetap+=Math.max(0,p-acc); });
-    const totalSales=(salesRes.data||[]).reduce((s,x)=>s+(Number(x.total)||0),0);
+    const totalSales=allSales.reduce((s,x)=>s+(Number(x.total)||0),0);
     const totalExp=allExp.reduce((s,x)=>s+(Number(x.amount)||0),0)-priveCat;
     const labaDitahan=totalSales-totalExp;
     const totalAset=kas+bank+piutang+persediaan+asetTetap;
@@ -1141,10 +1166,17 @@ const API = {
     const fmtM  = d => { const x=new Date(d); const p=n=>String(n).padStart(2,'0'); return x.getFullYear()+'-'+p(x.getMonth()+1); };
     const dcal  = d => { const x=new Date(d); const p=n=>String(n).padStart(2,'0'); return x.getFullYear()+'-'+p(x.getMonth()+1)+'-'+p(x.getDate()); };
 
-    const [salesRes, expRes, prodRes] = await Promise.all([
-      db.from('sales').select('*'), db.from('expenses').select('*'), db.from('products').select('*')
+    // "Pendapatan per Bulan" butuh 6 bulan terakhir walau periode yang diminta cuma sehari -> perlebar batas query-nya
+    const sixMoAgo = new Date(); sixMoAgo.setMonth(sixMoAgo.getMonth()-6);
+    const todayYmd = dcal(new Date());
+    const qFrom = fromYmd < dcal(sixMoAgo) ? fromYmd : dcal(sixMoAgo);
+    const qTo = toYmd > todayYmd ? toYmd : todayYmd;
+    const { start, end } = bizRangeUtcBounds(qFrom, qTo);
+    const [salesData, expRes, prodRes] = await Promise.all([
+      fetchAllRows('sales', '*', q => q.gte('datetime', start).lt('datetime', end)),
+      db.from('expenses').select('*'), db.from('products').select('*')
     ]);
-    const sales = (salesRes.data||[]).filter(s=>s.datetime).map(s=>({
+    const sales = (salesData||[]).filter(s=>s.datetime).map(s=>({
       date:new Date(s.datetime), total:Number(s.total)||0, disc:Number(s.disc)||0,
       method:s.method, mix:s.mix, kasir:s.kasir||'(tanpa nama)', items:s.items||[]
     }));
@@ -1243,8 +1275,9 @@ const API = {
     const pFromY=ymd2(new Date(fd.getTime()-lenDays*dayMs)), pToY=ymd2(new Date(fd.getTime()-dayMs));
     const inCur=k=>k>=fromY&&k<=toY, inPrv=k=>k>=pFromY&&k<=pToY;
 
-    const [salesRes, prodRes, expRes, consRes, ccRes, coRes, debtRes] = await Promise.all([
-      db.from('sales').select('*'), db.from('products').select('*'), db.from('expenses').select('*'),
+    const { start:_biStart, end:_biEnd } = bizRangeUtcBounds(pFromY, toY);
+    const [salesData, prodRes, expRes, consRes, ccRes, coRes, debtRes] = await Promise.all([
+      fetchAllRows('sales', '*', q => q.gte('datetime', _biStart).lt('datetime', _biEnd)), db.from('products').select('*'), db.from('expenses').select('*'),
       db.from('consumption').select('*'), db.from('cash_close').select('*'), db.from('cash_open').select('*'),
       db.from('debts').select('total,paid')
     ]);
@@ -1254,7 +1287,7 @@ const API = {
 
     const bucket = () => ({omzet:0,count:0,disc:0,refundAmt:0,refundCnt:0,mitra:0,pay:{},days:{},hours:{},prodQty:{}});
     const cur=bucket(), prv=bucket();
-    (salesRes.data||[]).forEach(s => {
+    (salesData||[]).forEach(s => {
       if(!s.datetime) return;
       const k=bizYmd(s.datetime); const B=inCur(k)?cur:(inPrv(k)?prv:null); if(!B) return;
       const items=s.items||[]; let mp=0; items.forEach(it=>mp+=shareOf(it));
@@ -1411,15 +1444,15 @@ const API = {
     const today = bizYmd(new Date());
     const p7 = new Date(); p7.setDate(p7.getDate()-6);
     const from7 = bizYmd(p7);
+    const { start:_dbStart, end:_dbEnd } = bizRangeUtcBounds(from7, today);
 
-    const [salesRes, prodRes, debtRes, expRes, coRes] = await Promise.all([
-      db.from('sales').select('datetime,total,method,mix,items,kasir'),
+    const [salesData, prodRes, debtRes, expRes, coRes] = await Promise.all([
+      fetchAllRows('sales', 'datetime,total,method,mix,items,kasir', q => q.gte('datetime', _dbStart).lt('datetime', _dbEnd)),
       db.from('products').select('id,name,stock,min,mitra,stok_induk,active'),
       db.from('debts').select('total,paid'),
       db.from('expenses').select('date,amount,type'),
       db.from('cash_open').select('opening').eq('date', today).maybeSingle()
     ]);
-    need(salesRes.error);
 
     const prodM = {}; (prodRes.data||[]).forEach(p => { const m=String(p.mitra||'').trim(); if(m) prodM[String(p.id)]=1; });
 
@@ -1429,7 +1462,7 @@ const API = {
     const daily={}; // 7 hari
     for(let i=0;i<7;i++){ const d=new Date(); d.setDate(d.getDate()-i); daily[bizYmd(d)]=0; }
 
-    (salesRes.data||[]).forEach(s => {
+    (salesData||[]).forEach(s => {
       if(!s.datetime) return;
       const k = bizYmd(s.datetime);
       const t = Number(s.total)||0;
