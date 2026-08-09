@@ -656,7 +656,18 @@
         <button class="btn btn-print" onclick="printZReport(lastZ)" title="Cetak Z-report" id="closePrintBtn" disabled>🖨️</button>
         <button class="btn btn-pay" id="closeBtn" onclick="doCloseShift()">Tutup Kas & Simpan</button>
       </div>
-      <div id="closeHistBox" style="margin-top:16px"></div>
+      <div style="margin-top:16px">
+        <div class="rpt-presets" style="margin-bottom:8px">
+          <button class="rpt-p" id="ch-hari" onclick="setCloseHistPreset('hari')">Hari Ini</button>
+          <button class="rpt-p" id="ch-kemarin" onclick="setCloseHistPreset('kemarin')">Kemarin</button>
+          <button class="rpt-p on" id="ch-bulan" onclick="setCloseHistPreset('bulan')">Bulan Ini</button>
+          <button class="rpt-p" id="ch-bulanlalu" onclick="setCloseHistPreset('bulanlalu')">Bulan Lalu</button>
+          <button class="rpt-p" id="ch-tahunlalu" onclick="setCloseHistPreset('tahunlalu')">Tahun Lalu</button>
+          <button class="rpt-p" id="ch-custom" onclick="setCloseHistPreset('custom')">Pilih Tanggal</button>
+        </div>
+        <div class="rpt-custom hidden" id="closeHistCustom"><span>Dari</span><input type="date" id="closeHistFromInp" onchange="applyCloseHistRange()"><span>s/d</span><input type="date" id="closeHistToInp" onchange="applyCloseHistRange()"></div>
+      </div>
+      <div id="closeHistBox" style="margin-top:8px"></div>
     </div>
   </div>
 </div>
@@ -3087,7 +3098,7 @@ async function openClose(){
   document.getElementById("closeSummary").innerHTML='<div style="color:#b3a999;text-align:center;padding:14px">memuat...</div>';
   document.getElementById("closeOverlay").classList.remove("hidden");
   await reloadCloseSummary();
-  loadCloseHist();
+  setCloseHistPreset("bulan");
 }
 async function reloadCloseSummary(){
   document.getElementById("closeSummary").innerHTML='<div style="color:#b3a999;text-align:center;padding:14px">memuat...</div>';
@@ -3256,12 +3267,32 @@ async function deleteConsumeC(id){
   try{const r=await run("deleteConsumption",state.token,id);if(r.products)state.products=r.products;renderAll();await loadConsume();toast("Konsumsi dihapus, stok dikembalikan");}catch(e){}
 }
 /* ---------- RIWAYAT TUTUP KAS ---------- */
-let closeHistData=[],closeHistAll=false;
+let closeHistData=[],closeHistAll=false,closeHistFrom=null,closeHistTo=null;
+function setCloseHistPreset(p){
+  const now=bizNow();["hari","kemarin","bulan","bulanlalu","tahunlalu","custom"].forEach(x=>{const b=document.getElementById("ch-"+x);if(b)b.classList.toggle("on",x===p);});
+  const cEl=document.getElementById("closeHistCustom");if(cEl)cEl.classList.toggle("hidden",p!=="custom");
+  if(p==="hari"){closeHistFrom=dayStart(now);closeHistTo=dayEnd(now);}
+  else if(p==="kemarin"){const y=new Date(now);y.setDate(y.getDate()-1);closeHistFrom=dayStart(y);closeHistTo=dayEnd(y);}
+  else if(p==="bulan"){closeHistFrom=dayStart(new Date(now.getFullYear(),now.getMonth(),1));closeHistTo=dayEnd(now);}
+  else if(p==="bulanlalu"){closeHistFrom=dayStart(new Date(now.getFullYear(),now.getMonth()-1,1));closeHistTo=dayEnd(new Date(now.getFullYear(),now.getMonth(),0));}
+  else if(p==="tahunlalu"){closeHistFrom=dayStart(new Date(now.getFullYear()-1,0,1));closeHistTo=dayEnd(new Date(now.getFullYear()-1,11,31));}
+  else{if(!closeHistFrom||!closeHistTo){closeHistFrom=dayStart(new Date(now.getFullYear(),now.getMonth(),1));closeHistTo=dayEnd(now);}
+    const fi=document.getElementById("closeHistFromInp"),ti=document.getElementById("closeHistToInp");if(fi)fi.value=ymd(closeHistFrom);if(ti)ti.value=ymd(closeHistTo);}
+  loadCloseHist();
+}
+function applyCloseHistRange(){
+  const f=document.getElementById("closeHistFromInp").value,t=document.getElementById("closeHistToInp").value;if(!f||!t)return;
+  let a=new Date(f+"T00:00:00"),b=new Date(t+"T00:00:00");if(a>b){const tmp=a;a=b;b=tmp;}
+  closeHistFrom=dayStart(a);closeHistTo=dayEnd(b);
+  ["hari","kemarin","bulan","bulanlalu","tahunlalu","custom"].forEach(x=>{const btn=document.getElementById("ch-"+x);if(btn)btn.classList.toggle("on",x==="custom");});
+  loadCloseHist();
+}
 async function loadCloseHist(){
   const box=document.getElementById("closeHistBox");if(!box)return;
   closeHistAll=false;
   box.innerHTML='<h4 class="rpt-sec" style="margin-bottom:6px">🗂️ Riwayat Tutup Kas</h4><div style="color:#b3a999;text-align:center;padding:10px;font-size:13px">memuat...</div>';
-  const now=bizNow();const from=ymd(dayStart(new Date(now.getFullYear(),now.getMonth()-1,1))),to=ymd(dayEnd(now));
+  if(!closeHistFrom||!closeHistTo){const now=bizNow();closeHistFrom=dayStart(new Date(now.getFullYear(),now.getMonth(),1));closeHistTo=dayEnd(now);}
+  const from=ymd(closeHistFrom),to=ymd(closeHistTo);
   try{closeHistData=await run("getCashCloses",state.token,from,to);}catch(e){closeHistData=[];}
   renderCloseHist();
 }
