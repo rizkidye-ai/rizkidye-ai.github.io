@@ -2358,9 +2358,12 @@ function expCatChanged(){
 async function addCustomExpenseCat(){
   const name=document.getElementById("exCatCustom").value.trim();
   if(!name){toast("Isi nama kategorinya dulu");return;}
-  const cur=(state.shop&&state.shop.customExpenseCats)||[];
-  if(builtinExpCats().concat(cur).indexOf(name)!==-1){toast("Kategori itu sudah ada");populateExpCatOptions(name);document.getElementById("exCatNewRow").classList.add("hidden");return;}
   try{
+    // ambil daftar TERBARU dulu (bukan yang di-cache di HP ini) -- biar tidak menimpa kategori
+    // yang baru ditambahkan kasir lain dari HP yang berbeda
+    const fresh=await run("getShopPublic");
+    const cur=(fresh&&fresh.customExpenseCats)||[];
+    if(builtinExpCats().concat(cur).indexOf(name)!==-1){toast("Kategori itu sudah ada");state.shop.customExpenseCats=cur;populateExpCatOptions(name);document.getElementById("exCatNewRow").classList.add("hidden");return;}
     const r=await run("saveCustomExpenseCats",state.token,cur.concat([name]));
     state.shop=state.shop||{};state.shop.customExpenseCats=r.customExpenseCats;
     document.getElementById("exCatCustom").value="";
@@ -2384,8 +2387,9 @@ function renderCatManage(){
 }
 async function removeCustomExpenseCat(name){
   if(!confirm("Hapus kategori \""+name+"\"? (pengeluaran yang sudah tercatat pakai nama ini tidak berubah)"))return;
-  const cur=(state.shop&&state.shop.customExpenseCats)||[];
   try{
+    const fresh=await run("getShopPublic");
+    const cur=(fresh&&fresh.customExpenseCats)||[];
     const r=await run("saveCustomExpenseCats",state.token,cur.filter(c=>c!==name));
     state.shop=state.shop||{};state.shop.customExpenseCats=r.customExpenseCats;
     populateExpCatOptions(document.getElementById("exCat").value===name?"Lain-lain":undefined);
