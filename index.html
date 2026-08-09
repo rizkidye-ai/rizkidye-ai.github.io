@@ -2520,7 +2520,7 @@ function renderReport(d){
     +(P.disc>0?`<tr><td>&nbsp;&nbsp;Diskon penjualan</td><td class="num">(${rp(P.disc)})</td></tr>`:``)
     +`<tr><td><b>Total Pendapatan Bersih</b></td><td class="num"><b>${rp(P.netSales)}</b></td></tr>`
     +`<tr><td>HPP — Belanja Stok</td><td class="num">(${rp(P.hpp)})</td></tr>`
-    +`<tr style="background:#faf6f0"><td><b>LABA KOTOR</b></td><td class="num"><b>${rp(P.labaKotor)}</b></td></tr>`
+    +`<tr style="background:#faf6f0"><td style="color:#2b1e15"><b>LABA KOTOR</b></td><td class="num" style="color:#2b1e15"><b>${rp(P.labaKotor)}</b></td></tr>`
     +`<tr><td colspan="2"><b>BEBAN OPERASIONAL</b></td></tr>`
     +(_ok.length?_ok.map(c=>`<tr><td>&nbsp;&nbsp;${c}</td><td class="num">(${rp(P.opCats[c])})</td></tr>`).join(""):`<tr><td>&nbsp;&nbsp;—</td><td class="num">Rp 0</td></tr>`)
     +`<tr><td><b>Total Beban Operasional</b></td><td class="num"><b>(${rp(P.totalOp)})</b></td></tr>`
@@ -2536,7 +2536,7 @@ function renderReport(d){
   const ec=d.expByCat||{};const eck=Object.keys(ec).sort((a,b)=>ec[b]-ec[a]);
   if(eck.length){h+=`<div class="rpt-sec"><h4>Rincian Pengeluaran</h4><table class="rpt-table"><tr><th>Kategori</th><th class="num">Jumlah</th></tr>`+eck.map(c=>`<tr><td>${c}</td><td class="num">${rp(ec[c])}</td></tr>`).join("")+`</table></div>`;}
   const _ml=d.mitraList||[];
-  if(_ml.length||d.titipanMitra>0){h+=`<div class="rpt-sec"><h4>🤝 Titipan Mitra (bukan pendapatan warkop)</h4><table class="rpt-table"><tr><th>Mitra</th><th class="num">Harus disetor</th></tr>`+_ml.map(m=>`<tr><td>${m.name}${m.total!==m.pay?` <span style="color:#9b9081;font-size:11px">(${rp(m.total)} dibulatkan)</span>`:""}</td><td class="num">${rp(m.pay)}</td></tr>`).join("")+`<tr style="background:#efe7db"><td><b>Total Setoran</b></td><td class="num"><b>${rp(d.titipanMitraPay||d.titipanMitra)}</b></td></tr></table><div style="font-size:11px;color:#9b9081;margin-top:6px">Uang ini sudah dikeluarkan dari omzet & laba warkop. Angka di atas = jumlah cash yang harus diserahkan ke tiap mitra.</div></div>`;}
+  if(_ml.length||d.titipanMitra>0){h+=`<div class="rpt-sec"><h4>🤝 Titipan Mitra (bukan pendapatan warkop)</h4><table class="rpt-table"><tr><th>Mitra</th><th class="num">Harus disetor</th></tr>`+_ml.map(m=>`<tr><td>${m.name}${m.total!==m.pay?` <span style="color:#9b9081;font-size:11px">(${rp(m.total)} dibulatkan)</span>`:""}</td><td class="num">${rp(m.pay)}</td></tr>`).join("")+`<tr style="background:#efe7db"><td style="color:#2b1e15"><b>Total Setoran</b></td><td class="num" style="color:#2b1e15"><b>${rp(d.titipanMitraPay||d.titipanMitra)}</b></td></tr></table><div style="font-size:11px;color:#9b9081;margin-top:6px">Uang ini sudah dikeluarkan dari omzet & laba warkop. Angka di atas = jumlah cash yang harus diserahkan ke tiap mitra.</div></div>`;}
   h+=`<div class="rpt-sec"><h4>Metode Pembayaran</h4><table class="rpt-table"><tr><th>Metode</th><th class="num">Jumlah</th></tr>`;
   const pk=Object.keys(d.pay);h+=pk.length?pk.map(m=>`<tr><td>${m}</td><td class="num">${rp(d.pay[m])}</td></tr>`).join(""):`<tr><td colspan="2" class="rpt-empty">—</td></tr>`;h+=`</table></div>`;
   const _debts=state.debts||[];const _out=_debts.filter(x=>!x.paid);const _totOut=_out.reduce((s,x)=>s+x.total,0);
@@ -2553,7 +2553,7 @@ function renderReport(d){
   h+=`<div class="rpt-sec"><h4>Rekap Harian</h4><table class="rpt-table"><tr><th>Tanggal</th><th class="num">Transaksi</th><th class="num">Omzet</th></tr>`;
   h+=d.daily.length?d.daily.map(x=>`<tr><td>${idDate(new Date(x.d+"T00:00:00"))}</td><td class="num">${x.count}</td><td class="num">${rp(x.omzet)}</td></tr>`).join(""):`<tr><td colspan="3" class="rpt-empty">—</td></tr>`;h+=`</table></div>`;
   h+=`<div class="rpt-sec"><h4>Pendapatan per Bulan (6 bulan terakhir)</h4><table class="rpt-table"><tr><th>Bulan</th><th class="num">Pemasukan</th><th class="num">Pengeluaran</th><th class="num">Bersih</th></tr>`;
-  h+=d.months.map(m=>{const rugi=m.omzet-m.exp<0;return `<tr${rugi?' style="background:#ffe9e9"':''}><td>${monthLabel(m.k)}${rugi?' ⚠️':''}</td><td class="num">${rp(m.omzet)}</td><td class="num">${rp(m.exp)}</td><td class="num" style="color:${rugi?'#e03131':'inherit'}">${rp(m.omzet-m.exp)}</td></tr>`;}).join("");h+=`</table></div>`;
+  h+=d.months.map(m=>{const rugi=m.omzet-m.exp<0;return `<tr${rugi?' style="background:#ffe9e9"':''}><td${rugi?' style="color:#8a1414"':''}>${monthLabel(m.k)}${rugi?' ⚠️':''}</td><td class="num"${rugi?' style="color:#8a1414"':''}>${rp(m.omzet)}</td><td class="num"${rugi?' style="color:#8a1414"':''}>${rp(m.exp)}</td><td class="num" style="color:${rugi?'#8a1414':'inherit'}">${rp(m.omzet-m.exp)}</td></tr>`;}).join("");h+=`</table></div>`;
   const _bk=d.byKasir||[];
   h+=`<div class="rpt-sec"><h4>👥 Penjualan per Kasir</h4><table class="rpt-table"><tr><th>Kasir</th><th class="num">Transaksi</th><th class="num">Rata-rata</th><th class="num">Omzet</th></tr>`
     +(_bk.length?_bk.map(k=>`<tr><td>${k.name}</td><td class="num">${k.count}</td><td class="num">${rp(k.avg)}</td><td class="num">${rp(k.omzet)}</td></tr>`).join(""):`<tr><td colspan="4" class="rpt-empty">Belum ada penjualan di periode ini.</td></tr>`)
@@ -2730,7 +2730,7 @@ async function loadNeraca(){
 }
 function neracaRows(N){
   const row=(label,val,indent)=>`<tr><td>${indent?'&nbsp;&nbsp;':''}${label}</td><td class="num">${rp(val)}</td></tr>`;
-  const head=(label)=>`<tr><td colspan="2" style="background:#faf6f0"><b>${label}</b></td></tr>`;
+  const head=(label)=>`<tr><td colspan="2" style="background:#faf6f0;color:#2b1e15"><b>${label}</b></td></tr>`;
   const tot=(label,val)=>`<tr><td><b>${label}</b></td><td class="num"><b>${rp(val)}</b></td></tr>`;
   let h=`<table class="rpt-table">`;
   h+=head("ASET")+row("Kas tunai (laci)",N.kas,1)+row("Saldo bank",N.bank,1)+row("Piutang usaha",N.piutang,1)+row("Persediaan",N.persediaan,1)+row("Aset tetap (nilai buku)",N.asetTetap,1)+tot("TOTAL ASET",N.totalAset);
