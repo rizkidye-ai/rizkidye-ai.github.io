@@ -555,8 +555,8 @@
               <button type="button" class="pm-btn noncash" data-v="Campur (Tunai+QRIS)" onclick="setPayMethod('Campur (Tunai+QRIS)')">➗ Campur</button>
             </div>
           </div>
-          <div class="field hidden" id="mixRow"><label>Tunai diterima (sisanya QRIS)</label><input id="mixCash" type="number" min="0" placeholder="cth: 2000" oninput="mixInfo()"><div id="mixHint" style="font-size:12px;color:#6f5836;margin-top:4px"></div></div>
-          <div class="field"><label>Uang Masuk</label><input id="cashIn" type="number" min="0" placeholder="0" oninput="recalc()"></div>
+          <div class="field hidden" id="mixRow"><label>Tunai diterima (sisanya QRIS)</label><input id="mixCash" type="text" inputmode="numeric" placeholder="cth: 2.000" oninput="onRupiahInput(this);mixInfo()"><div id="mixHint" style="font-size:12px;color:#6f5836;margin-top:4px"></div></div>
+          <div class="field"><label>Uang Masuk</label><input id="cashIn" type="text" inputmode="numeric" placeholder="0" oninput="onRupiahInput(this);recalc()"></div>
           <div class="quick-cash">
             <button type="button" onclick="quickCash('cashIn','total','pas')">Uang Pas</button>
             <button type="button" onclick="quickCash('cashIn','total',20000)">Rp 20.000</button>
@@ -648,8 +648,8 @@
       <div class="field"><label>📅 Tanggal (hari usaha) yang ditutup</label><input id="closeDateInp" type="date" onchange="reloadCloseSummary()"></div>
       <div id="closeExistWarn"></div>
       <div id="closeSummary"></div>
-      <div class="field"><label>Modal Awal di Laci (Rp)</label><input id="closeOpening" type="number" min="0" placeholder="cth: 100000" value="0" oninput="recalcClose()"></div>
-      <div class="field"><label>Uang Fisik Dihitung di Laci (Rp)</label><input id="closeCounted" type="number" min="0" placeholder="hitung uang di laci" oninput="recalcClose()"></div>
+      <div class="field"><label>Modal Awal di Laci (Rp)</label><input id="closeOpening" type="text" inputmode="numeric" placeholder="cth: 100.000" value="0" oninput="onRupiahInput(this);recalcClose()"></div>
+      <div class="field"><label>Uang Fisik Dihitung di Laci (Rp)</label><input id="closeCounted" type="text" inputmode="numeric" placeholder="hitung uang di laci" oninput="onRupiahInput(this);recalcClose()"></div>
       <div class="close-calc" id="closeCalc"></div>
       <div class="field"><label>Catatan (opsional)</label><input id="closeNote" placeholder="cth: shift sore, ada tip"></div>
       <div class="actions" style="margin-top:6px">
@@ -686,8 +686,8 @@
           <button type="button" class="pm-btn noncash" data-v="Campur (Tunai+QRIS)" onclick="setSplitPayMethod('Campur (Tunai+QRIS)')">➗ Campur</button>
         </div>
       </div>
-      <div class="field hidden" id="splitMixRow"><label>Tunai diterima (sisanya QRIS)</label><input id="splitMixCash" type="number" min="0" oninput="splitMixInfo()"><div id="splitMixHint" style="font-size:12px;color:#6f5836;margin-top:4px"></div></div>
-      <div class="field"><label>Uang Masuk</label><input id="splitCash" type="number" min="0" placeholder="0" oninput="renderSplitTotals()"></div>
+      <div class="field hidden" id="splitMixRow"><label>Tunai diterima (sisanya QRIS)</label><input id="splitMixCash" type="text" inputmode="numeric" oninput="onRupiahInput(this);splitMixInfo()"><div id="splitMixHint" style="font-size:12px;color:#6f5836;margin-top:4px"></div></div>
+      <div class="field"><label>Uang Masuk</label><input id="splitCash" type="text" inputmode="numeric" placeholder="0" oninput="onRupiahInput(this);renderSplitTotals()"></div>
       <div class="quick-cash">
         <button type="button" onclick="quickCash('splitCash','splitTotalVal','pas')">Uang Pas</button>
         <button type="button" onclick="quickCash('splitCash','splitTotalVal',20000)">Rp 20.000</button>
@@ -729,7 +729,7 @@
         <div class="ff"><label>Jenis Pengeluaran</label><select id="exType"><option>Harian</option><option>Bulanan</option></select></div>
         <div class="ff"><label>Keterangan</label><input id="exName" placeholder="cth: Beli sedotan, Beli es batu, Bayar listrik"></div>
         <div class="grid2">
-          <div class="ff"><label>Jumlah (Rp)</label><input id="exAmount" type="number" min="0" placeholder="0"></div>
+          <div class="ff"><label>Jumlah (Rp)</label><input id="exAmount" type="text" inputmode="numeric" placeholder="0" oninput="onRupiahInput(this)"></div>
           <div class="ff"><label>Catatan (opsional)</label><input id="exNote" placeholder="opsional"></div>
         </div>
         <div class="uf-actions">
@@ -1170,6 +1170,19 @@ const MONTHS_FULL=["Januari","Februari","Maret","April","Mei","Juni","Juli","Agu
 
 /* ---------- helpers ---------- */
 function rp(n){return "Rp "+(Math.round(n||0)).toLocaleString("id-ID");}
+/* ---------- input angka ber-titik ribuan (Rp) ---------- */
+function digitsOnly(s){return String(s==null?"":s).replace(/[^\d]/g,"");}
+function fmtRibuan(s){const d=digitsOnly(s).replace(/^0+(?=\d)/,"");return d?Number(d).toLocaleString("id-ID"):"";}
+function rpVal(id){const el=document.getElementById(id);return el?(parseFloat(digitsOnly(el.value))||0):0;}
+function onRupiahInput(el){
+  const before=el.value,pos=el.selectionStart;
+  const digitsBeforeCursor=digitsOnly(before.slice(0,pos)).length;
+  el.value=fmtRibuan(before);
+  let seen=0,newPos=el.value.length;
+  for(let i=0;i<el.value.length;i++){ if(/\d/.test(el.value[i])){seen++; if(seen===digitsBeforeCursor){newPos=i+1;break;} } }
+  if(digitsBeforeCursor===0)newPos=0;
+  el.setSelectionRange(newPos,newPos);
+}
 function pad2(n){return String(n).padStart(2,"0");}
 function fmtFull(d){d=new Date(d);return [pad2(d.getDate()),pad2(d.getMonth()+1),d.getFullYear()].join("/")+" "+pad2(d.getHours())+":"+pad2(d.getMinutes())+":"+pad2(d.getSeconds());}
 function fmtHM(d){d=new Date(d);return pad2(d.getHours())+":"+pad2(d.getMinutes());}
@@ -1312,7 +1325,7 @@ function recalc(){
   document.getElementById("sumTotal").textContent=rp(tot);
   document.getElementById("mbTotal").textContent=rp(tot);
   document.getElementById("mbCount").textContent=cart.reduce((s,c)=>s+c.qty,0);
-  const cash=parseFloat(document.getElementById("cashIn").value)||0,k=cash-tot,kel=document.getElementById("kembalian");
+  const cash=rpVal("cashIn"),k=cash-tot,kel=document.getElementById("kembalian");
   kel.textContent=rp(k);kel.classList.toggle("neg",k<0);
   const btn=document.getElementById("payBtn");
   if(payType==="bayar"){btn.className="btn btn-pay";btn.textContent="Bayar "+rp(tot);}
@@ -1449,10 +1462,10 @@ async function checkout(){
   }else{
     if(!cart.length){toast("Keranjang masih kosong");return;}
     let method=document.getElementById("payMethod").value;
-    let cash=parseFloat(document.getElementById("cashIn").value)||0;
+    let cash=rpVal("cashIn");
     let mix=null,methodLabel=method;
     if(method.indexOf("Campur")===0){
-      const c=parseFloat(document.getElementById("mixCash").value)||0;
+      const c=rpVal("mixCash");
       if(c<=0||c>=tot){toast("Isi tunai antara 1 dan "+rp(tot-1));return;}
       method="Campur";mix={"Tunai":c,"QRIS":tot-c};cash=c;
       methodLabel="Campur: Tunai "+rp(c)+" + QRIS "+rp(tot-c);
@@ -1500,13 +1513,13 @@ function payMethodChanged(){
 }
 function mixInfo(){
   const tot=total();
-  const c=parseFloat(document.getElementById("mixCash").value)||0;
+  const c=rpVal("mixCash");
   document.getElementById("mixHint").textContent=(c>0&&c<tot)?("Tunai "+rp(c)+" + QRIS "+rp(tot-c)):(c>=tot?"⚠️ Tunai ≥ total — pakai metode Tunai saja":"Isi jumlah tunai yang diterima");
 }
 function previewStruk(){
   if(!cart.length){toast("Keranjang kosong");return;}
   showReceipt({no:"(preview)",method:payType==="bayar"?document.getElementById("payMethod").value:"BELUM BAYAR",
-    cash:parseFloat(document.getElementById("cashIn").value)||0,kembalian:Math.max(0,(parseFloat(document.getElementById("cashIn").value)||0)-total()),
+    cash:rpVal("cashIn"),kembalian:Math.max(0,rpVal("cashIn")-total()),
     items:snapItems(),sub:subtotal(),disc:discountAmount(),total:total(),kasir:state.user.name,date:new Date(),
     meja:cartMode==="edit"?editingTable:null,cust:document.getElementById("custName").value.trim(),open:payType==="meja"},true);
 }
@@ -1956,7 +1969,7 @@ function setSplitPayMethod(v){
   splitMixChanged();
 }
 function splitMixChanged(){const mix=document.getElementById("splitMethod").value.indexOf("Campur")===0;document.getElementById("splitMixRow").classList.toggle("hidden",!mix);if(mix)splitMixInfo();}
-function splitMixInfo(){const tot=splitTotalVal();const c=parseFloat(document.getElementById("splitMixCash").value)||0;document.getElementById("splitMixHint").textContent=(c>0&&c<tot)?("Tunai "+rp(c)+" + QRIS "+rp(tot-c)):(c>=tot?"⚠️ Tunai ≥ total — pakai Tunai saja":"Isi jumlah tunai yang diterima");}
+function splitMixInfo(){const tot=splitTotalVal();const c=rpVal("splitMixCash");document.getElementById("splitMixHint").textContent=(c>0&&c<tot)?("Tunai "+rp(c)+" + QRIS "+rp(tot-c)):(c>=tot?"⚠️ Tunai ≥ total — pakai Tunai saja":"Isi jumlah tunai yang diterima");}
 function toggleSplitAdd(){const p=document.getElementById("splitAddPanel");p.classList.toggle("hidden");if(!p.classList.contains("hidden")){renderSplitAdd();}}
 function renderSplitAdd(){
   const q=(document.getElementById("splitAddSearch").value||"").toLowerCase();
@@ -1996,7 +2009,7 @@ function splitPpl(d){splitPeople=Math.max(1,splitPeople+d);renderSplit();}
 function renderSplitTotals(){
   const tot=splitTotalVal();
   document.getElementById("splitTotal").textContent=rp(tot);
-  const cash=parseFloat(document.getElementById("splitCash").value)||0,k=cash-tot,kel=document.getElementById("splitKembali");
+  const cash=rpVal("splitCash"),k=cash-tot,kel=document.getElementById("splitKembali");
   kel.textContent=rp(k);kel.classList.toggle("neg",k<0);
   document.getElementById("splitPayBtn").disabled=busy||tot<=0;
 }
@@ -2004,10 +2017,10 @@ async function splitPay(){
   if(busy)return;const tot=splitTotalVal();
   if(tot<=0){toast("Pilih item yang mau dibayar");return;}
   let method=document.getElementById("splitMethod").value;
-  let cash=parseFloat(document.getElementById("splitCash").value)||0;
+  let cash=rpVal("splitCash");
   let mix=null,methodLabel=method;
   if(method.indexOf("Campur")===0){
-    const c=parseFloat(document.getElementById("splitMixCash").value)||0;
+    const c=rpVal("splitMixCash");
     if(c<=0||c>=tot){toast("Isi tunai antara 1 dan "+rp(tot-1));return;}
     method="Campur";mix={"Tunai":c,"QRIS":tot-c};cash=c;
     methodLabel="Campur: Tunai "+rp(c)+" + QRIS "+rp(tot-c);
@@ -2128,14 +2141,14 @@ function showInvDetail(id){
       <div class="cur">Stok saat ini: <b>${p.stock}</b> · ${p.cat} · status: ${stockStatus(p)}</div>
       <div class="drow"><div class="fld"><label>➕ Stok Masuk (restock)</label><input id="invIn" type="number" min="1" placeholder="jumlah"></div><button class="dbtn" style="background:var(--success)" onclick="doRestock()">Tambah</button></div>
       <div class="drow"><div class="fld"><label>✏️ Koreksi / Opname (stok aktual)</label><input id="invOp" type="number" min="0" placeholder="hitung fisik"></div><button class="dbtn" style="background:var(--info)" onclick="doOpname()">Koreksi</button></div>
-      <div class="drow"><div class="fld"><label>Stok Minimum (alert)</label><input id="invMin" type="number" min="0" value="${p.min||10}"></div><div class="fld"><label>Harga Modal / pcs</label><input id="invCost" type="number" min="0" value="${p.cost||0}"></div><button class="dbtn" style="background:var(--coffee)" onclick="saveInvSettings()">Simpan</button></div>
+      <div class="drow"><div class="fld"><label>Stok Minimum (alert)</label><input id="invMin" type="number" min="0" value="${p.min||10}"></div><div class="fld"><label>Harga Modal / pcs</label><input id="invCost" type="text" inputmode="numeric" value="${fmtRibuan(p.cost||0)}" oninput="onRupiahInput(this)"></div><button class="dbtn" style="background:var(--coffee)" onclick="saveInvSettings()">Simpan</button></div>
       <button class="batal" style="background:none;color:#9b9081;font-size:12px;font-weight:600;text-decoration:underline" onclick="document.getElementById('invDetail').innerHTML='';invSelId=null;">Tutup</button>
     </div>`;
   document.getElementById("invDetail").scrollIntoView({behavior:"smooth",block:"nearest"});
 }
 async function doRestock(){const q=parseInt(document.getElementById("invIn").value);if(!q||q<=0){toast("Isi jumlah stok masuk");return;}const r=await run("restock",state.token,invSelId,q);state.stockLog=await run("getStockLog",state.token);applyResult(r);toast("Stok ditambah +"+q);}
 async function doOpname(){const v=document.getElementById("invOp").value;if(v===""){toast("Isi hasil hitung fisik");return;}const r=await run("opname",state.token,invSelId,parseInt(v));state.stockLog=await run("getStockLog",state.token);applyResult(r);toast("Stok dikoreksi → "+v);}
-async function saveInvSettings(){const min=parseInt(document.getElementById("invMin").value)||0,cost=parseFloat(document.getElementById("invCost").value)||0;const r=await run("updateProductSettings",state.token,invSelId,min,cost);applyResult(r);toast("Pengaturan disimpan");}
+async function saveInvSettings(){const min=parseInt(document.getElementById("invMin").value)||0,cost=rpVal("invCost");const r=await run("updateProductSettings",state.token,invSelId,min,cost);applyResult(r);toast("Pengaturan disimpan");}
 function renderInvLog(){
   const box=document.getElementById("invLogList");
   if(!state.stockLog.length){box.innerHTML='<div style="text-align:center;color:#b3a999;padding:24px">Belum ada pergerakan stok.</div>';return;}
@@ -2164,10 +2177,10 @@ function showProdForm(id){
   document.getElementById("prodForm").innerHTML=`
     <div class="prod-form">
       <div class="ff"><label style="font-size:12.5px;font-weight:600;color:#7c7263">Nama Produk</label><input id="pfName" value="${p?p.name:''}" placeholder="cth: Kopi Sanger" style="padding:10px;border:1.5px solid var(--line);border-radius:9px"></div>
-      <div class="grid2"><div class="ff"><label style="font-size:12.5px;font-weight:600;color:#7c7263">Kategori</label><select id="pfCat" style="padding:10px;border:1.5px solid var(--line);border-radius:9px">${catOpts}</select></div><div class="ff"><label style="font-size:12.5px;font-weight:600;color:#7c7263">Harga (Rp)</label><input id="pfPrice" type="number" value="${p?p.price:''}" placeholder="0" style="padding:10px;border:1.5px solid var(--line);border-radius:9px"></div></div>
-      <div class="grid2"><div class="ff"><label style="font-size:12.5px;font-weight:600;color:#7c7263">Harga Modal / Cost (Rp)</label><input id="pfCost" type="number" value="${p?(p.cost||0):0}" placeholder="0" style="padding:10px;border:1.5px solid var(--line);border-radius:9px"></div><div class="ff"><label style="font-size:12.5px;font-weight:600;color:#7c7263">Stok</label><input id="pfStock" type="number" value="${p?p.stock:0}" style="padding:10px;border:1.5px solid var(--line);border-radius:9px"></div></div>
+      <div class="grid2"><div class="ff"><label style="font-size:12.5px;font-weight:600;color:#7c7263">Kategori</label><select id="pfCat" style="padding:10px;border:1.5px solid var(--line);border-radius:9px">${catOpts}</select></div><div class="ff"><label style="font-size:12.5px;font-weight:600;color:#7c7263">Harga (Rp)</label><input id="pfPrice" type="text" inputmode="numeric" value="${fmtRibuan(p?p.price:'')}" placeholder="0" style="padding:10px;border:1.5px solid var(--line);border-radius:9px" oninput="onRupiahInput(this)"></div></div>
+      <div class="grid2"><div class="ff"><label style="font-size:12.5px;font-weight:600;color:#7c7263">Harga Modal / Cost (Rp)</label><input id="pfCost" type="text" inputmode="numeric" value="${fmtRibuan(p?(p.cost||0):0)}" placeholder="0" style="padding:10px;border:1.5px solid var(--line);border-radius:9px" oninput="onRupiahInput(this)"></div><div class="ff"><label style="font-size:12.5px;font-weight:600;color:#7c7263">Stok</label><input id="pfStock" type="number" value="${p?p.stock:0}" style="padding:10px;border:1.5px solid var(--line);border-radius:9px"></div></div>
       <div class="ff"><label style="font-size:12.5px;font-weight:600;color:#7c7263">Titipan Mitra (kosongkan jika milik warkop)</label><input id="pfMitra" value="${p?(p.mitra||''):''}" placeholder="cth: Bang Udin (penjual mie)" style="padding:10px;border:1.5px solid var(--line);border-radius:9px"></div>
-      <div class="ff"><label style="font-size:12.5px;font-weight:600;color:#7c7263">Bagian Mitra per pcs (Rp) — sisanya komisi kedai</label><input id="pfMitraCost" type="number" min="0" value="${p?(p.mitraCost||''):''}" placeholder="cth: kue 1000 → isi 800" style="padding:10px;border:1.5px solid var(--line);border-radius:9px"></div>
+      <div class="ff"><label style="font-size:12.5px;font-weight:600;color:#7c7263">Bagian Mitra per pcs (Rp) — sisanya komisi kedai</label><input id="pfMitraCost" type="text" inputmode="numeric" value="${fmtRibuan(p?(p.mitraCost||''):'')}" placeholder="cth: kue 1.000 → isi 800" style="padding:10px;border:1.5px solid var(--line);border-radius:9px" oninput="onRupiahInput(this)"></div>
       <div class="ff"><label style="font-size:12.5px;font-weight:600;color:#7c7263">Stok ikut produk (untuk varian Es/Panas dari sachet yang sama)</label><select id="pfInduk" style="padding:10px;border:1.5px solid var(--line);border-radius:9px"><option value="">— stok sendiri —</option>${state.products.filter(x=>!x.mitra&&!x.stokInduk&&(!p||String(x.id)!==String(p.id))).map(x=>`<option value="${x.id}" ${p&&p.stokInduk===String(x.id)?'selected':''}>${x.name}</option>`).join("")}</select>${(function(){const ikut=p?state.products.filter(x=>String(x.stokInduk||'')===String(p.id)).map(x=>x.name):[];return ikut.length?`<div style="font-size:11.5px;color:#2f9e44;margin-top:4px">🔗 Produk ini jadi INDUK stok untuk: <b>${ikut.join(", ")}</b></div>`:(p&&p.stokInduk?`<div style="font-size:11.5px;color:#3b6fd6;margin-top:4px">↪ Stok produk ini ikut: <b>${p.indukName||p.stokInduk}</b></div>`:"");})()}</div>
       <div class="ff"><label style="font-size:12.5px;font-weight:600;color:#7c7263">Status</label><select id="pfActive" style="padding:10px;border:1.5px solid var(--line);border-radius:9px"><option value="1" ${!p||p.active?'selected':''}>Aktif</option><option value="0" ${p&&!p.active?'selected':''}>Nonaktif</option></select></div>
       <div class="pf-actions"><button style="background:var(--success)" onclick="saveProd('${id||''}')">💾 Simpan</button>${id?`<button style="background:var(--alert)" onclick="deleteProd('${id}')">Hapus</button>`:''}<button style="background:#9b9081" onclick="closeProdForm()">Batal</button></div>
@@ -2176,7 +2189,7 @@ function showProdForm(id){
 }
 async function saveProd(id){
   const name=document.getElementById("pfName").value.trim();if(!name){toast("Nama produk wajib diisi");return;}
-  const payload={id:id||"",name,cat:document.getElementById("pfCat").value,price:parseFloat(document.getElementById("pfPrice").value)||0,cost:parseFloat(document.getElementById("pfCost").value)||0,stock:parseInt(document.getElementById("pfStock").value)||0,active:document.getElementById("pfActive").value==="1",mitra:document.getElementById("pfMitra").value.trim(),mitraCost:parseFloat(document.getElementById("pfMitraCost").value)||0,stokInduk:document.getElementById("pfInduk").value};
+  const payload={id:id||"",name,cat:document.getElementById("pfCat").value,price:rpVal("pfPrice"),cost:rpVal("pfCost"),stock:parseInt(document.getElementById("pfStock").value)||0,active:document.getElementById("pfActive").value==="1",mitra:document.getElementById("pfMitra").value.trim(),mitraCost:rpVal("pfMitraCost"),stokInduk:document.getElementById("pfInduk").value};
   const r=await run("saveProduct",state.token,payload);applyResult(r);closeProdForm();toast(id?"Produk diperbarui":"Produk ditambahkan");
 }
 async function deleteProd(id){if(!confirm("Hapus produk ini?"))return;const r=await run("deleteProduct",state.token,id);document.getElementById("prodForm").innerHTML="";applyResult(r);toast("Produk dihapus");}
@@ -2240,7 +2253,7 @@ async function openCapital(){
   if(!capData.assets)capData.assets=[];
   renderCapital();
 }
-function capInput(id,label,val){return `<div class="ff"><label>${label}</label><input id="${id}" type="number" min="0" value="${val||0}"></div>`;}
+function capInput(id,label,val){return `<div class="ff"><label>${label}</label><input id="${id}" type="text" inputmode="numeric" value="${fmtRibuan(val||0)}" oninput="onRupiahInput(this)"></div>`;}
 function renderCapital(){
   const v=capData.values||{};
   let h=`<div class="user-form" style="border-color:var(--coffee)">
@@ -2266,7 +2279,7 @@ function renderAssetRows(){
   box.innerHTML=capData.assets.map((a,i)=>`
     <div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px">
       <div class="grid2"><div class="ff"><label>Nama aset</label><input value="${a.name||''}" oninput="capAssetSet(${i},'name',this.value)" placeholder="cth: Mesin kopi"></div><div class="ff"><label>Tanggal beli</label><input type="date" value="${a.buyDate||''}" oninput="capAssetSet(${i},'buyDate',this.value)"></div></div>
-      <div class="grid2"><div class="ff"><label>Harga beli (Rp)</label><input type="number" min="0" value="${a.buyPrice||0}" oninput="capAssetSet(${i},'buyPrice',this.value)"></div><div class="ff"><label>Umur pakai (tahun)</label><input type="number" min="1" value="${a.lifeYears||1}" oninput="capAssetSet(${i},'lifeYears',this.value)"></div></div>
+      <div class="grid2"><div class="ff"><label>Harga beli (Rp)</label><input type="text" inputmode="numeric" value="${fmtRibuan(a.buyPrice||0)}" oninput="onRupiahInput(this);capAssetSet(${i},'buyPrice',digitsOnly(this.value))"></div><div class="ff"><label>Umur pakai (tahun)</label><input type="number" min="1" value="${a.lifeYears||1}" oninput="capAssetSet(${i},'lifeYears',this.value)"></div></div>
       <div style="font-size:12px;color:#7c7263;margin-top:4px"><span id="assetCalc${i}">Penyusutan/thn: <b>${rp(assetDepr(a))}</b> · Nilai sekarang: <b>${rp(assetValue(a))}</b></span> <button class="batal" style="float:right;background:none;color:var(--alert);font-weight:600;text-decoration:underline" onclick="delAssetRow(${i})">🗑 Hapus</button></div>
     </div>`).join("");
 }
@@ -2278,9 +2291,9 @@ function capAssetSet(i,k,val){
 function addAssetRow(){capData.assets.push({name:'',buyPrice:0,lifeYears:1,buyDate:ymd(new Date())});renderAssetRows();}
 function delAssetRow(i){capData.assets.splice(i,1);renderAssetRows();}
 async function saveCapitalC(){
-  const values={modalAwal:+document.getElementById("capModalAwal").value||0,setoran:+document.getElementById("capSetoran").value||0,
-    prive:+document.getElementById("capPrive").value||0,kas:+document.getElementById("capKas").value||0,bank:+document.getElementById("capBank").value||0,
-    hutangBank:+document.getElementById("capHutangBank").value||0,hutangLain:+document.getElementById("capHutangLain").value||0};
+  const values={modalAwal:rpVal("capModalAwal"),setoran:rpVal("capSetoran"),
+    prive:rpVal("capPrive"),kas:rpVal("capKas"),bank:rpVal("capBank"),
+    hutangBank:rpVal("capHutangBank"),hutangLain:rpVal("capHutangLain")};
   try{capData=await run("saveCapital",state.token,{values:values,assets:capData.assets});if(!capData.assets)capData.assets=[];toast("✅ Data Modal & Aset tersimpan");}catch(e){}
 }
 
@@ -2400,7 +2413,7 @@ async function removeCustomExpenseCat(name){
 function readExpForm(){
   const cat=document.getElementById("exCat").value;
   return{cat:cat==="__new__"?"":cat,date:document.getElementById("exDate").value,
-  name:document.getElementById("exName").value.trim(),amount:parseFloat(document.getElementById("exAmount").value)||0,
+  name:document.getElementById("exName").value.trim(),amount:rpVal("exAmount"),
   note:document.getElementById("exNote").value.trim(),type:document.getElementById("exType").value};}
 function resetExpenseForm(){exEditId=null;document.getElementById("exName").value="";document.getElementById("exAmount").value="";document.getElementById("exNote").value="";document.getElementById("exDate").value=bizYmd(new Date());document.getElementById("exType").value="Harian";
   const keep=document.getElementById("exCat").value==="__new__"?"Belanja Stok":undefined;
@@ -2429,7 +2442,7 @@ function editExpense(id){
   document.getElementById("exCatNewRow").classList.add("hidden");
   document.getElementById("exCatManage").classList.add("hidden");
   document.getElementById("exDate").value=ymd(e.date);
-  document.getElementById("exName").value=e.name;document.getElementById("exAmount").value=e.amount;document.getElementById("exNote").value=e.note;document.getElementById("exType").value=e.type||"Harian";
+  document.getElementById("exName").value=e.name;document.getElementById("exAmount").value=fmtRibuan(e.amount);document.getElementById("exNote").value=e.note;document.getElementById("exType").value=e.type||"Harian";
   document.getElementById("exSaveBtn").textContent="💾 Update Pengeluaran";
   exScrollBeforeEdit=document.getElementById("expenseOverlay").querySelector(".sheet-body").scrollTop;
   document.getElementById("expenseOverlay").querySelector(".sheet-body").scrollTop=0;
@@ -3082,12 +3095,12 @@ async function reloadCloseSummary(){
   const warn=document.getElementById("closeExistWarn");
   if(closeSum.closed){
     warn.innerHTML=`<div style="background:#fff4ee;border:1px solid #f4cdb6;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12.5px;color:#c25a1f">⚠️ Tanggal ini <b>sudah pernah ditutup</b> oleh ${closeSum.closed.by}${closeSum.closed.datetime?" ("+fmtFull(closeSum.closed.datetime)+")":""}. Menyimpan lagi akan <b>menimpa</b> data lama (tidak jadi dobel).</div>`;
-    document.getElementById("closeOpening").value=closeSum.closed.opening||0;
-    document.getElementById("closeCounted").value=closeSum.closed.counted||"";
+    document.getElementById("closeOpening").value=fmtRibuan(closeSum.closed.opening||0);
+    document.getElementById("closeCounted").value=fmtRibuan(closeSum.closed.counted||"");
     document.getElementById("closeNote").value=closeSum.closed.note||"";
   }else{
     warn.innerHTML="";
-    if(closeSum.openingFloat!=null)document.getElementById("closeOpening").value=closeSum.openingFloat;
+    if(closeSum.openingFloat!=null)document.getElementById("closeOpening").value=fmtRibuan(closeSum.openingFloat);
   }
   renderCloseSummary();recalcClose();
 }
@@ -3099,16 +3112,16 @@ function renderCloseSummary(){
   h+=`<tr><td>Pengeluaran harian (dari laci)</td><td class="num" style="color:#e03131">- ${rp(s.expenses)}</td></tr>`;
   if(s.expensesBulanan>0)h+=`<tr><td>Belanja bulanan (tidak dari laci)</td><td class="num" style="color:#9b9081">${rp(s.expensesBulanan)}</td></tr>`;
   const tbm=s.titipanByMitra||{},tpm=s.titipanPayByMitra||tbm,tqm=s.titipanQtyByMitra||{};
-  Object.keys(tpm).forEach(m=>h+=`<tr><td>Setor ke ${m}<div style="font-size:10.5px;color:#9b9081">sistem: ${rp(tpm[m])}${tqm[m]!=null?" · "+tqm[m]+" pcs terjual":""} — ubah sesuai hitungan fisik</div></td><td class="num"><input type="number" class="mitraPayInp" data-mitra="${m}" value="${tpm[m]}" min="0" style="width:110px;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;text-align:right;font-weight:700" oninput="recalcClose()"></td></tr>`);
+  Object.keys(tpm).forEach(m=>h+=`<tr><td>Setor ke ${m}<div style="font-size:10.5px;color:#9b9081">sistem: ${rp(tpm[m])}${tqm[m]!=null?" · "+tqm[m]+" pcs terjual":""} — ubah sesuai hitungan fisik</div></td><td class="num"><input type="text" inputmode="numeric" class="mitraPayInp" data-mitra="${m}" value="${fmtRibuan(tpm[m])}" style="width:110px;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;text-align:right;font-weight:700" oninput="onRupiahInput(this);recalcClose()"></td></tr>`);
   h+=`</table>`;
   if(Object.keys(tpm).length)h+=`<div style="background:#efe7db;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:#6f5836">🤝 Isi kolom setoran sesuai <b>hitungan fisik bersama mitra</b> (bawa − sisa). Selisih dari catatan sistem otomatis dicatat sebagai traktir/tak tercatat.</div>`;
   document.getElementById("closeSummary").innerHTML=h;
 }
-function mitraPayInputs(){const o={};document.querySelectorAll(".mitraPayInp").forEach(el=>{o[el.dataset.mitra]=parseFloat(el.value)||0;});return o;}
+function mitraPayInputs(){const o={};document.querySelectorAll(".mitraPayInp").forEach(el=>{o[el.dataset.mitra]=parseFloat(digitsOnly(el.value))||0;});return o;}
 function recalcClose(){
   if(!closeSum)return;
-  const opening=parseFloat(document.getElementById("closeOpening").value)||0;
-  const counted=parseFloat(document.getElementById("closeCounted").value)||0;
+  const opening=rpVal("closeOpening");
+  const counted=rpVal("closeCounted");
   const payMap=mitraPayInputs();
   const titipan=Object.keys(payMap).length?Object.keys(payMap).reduce((s,m)=>s+payMap[m],0):(closeSum.titipanMitra||0);
   const traktir=titipan-(closeSum.titipanMitra||0);
@@ -3126,8 +3139,8 @@ function recalcClose(){
 async function doCloseShift(){
   if(!closeSum){toast("Data belum siap");return;}
   if(document.getElementById("closeCounted").value===""){toast("Isi uang fisik yang dihitung");return;}
-  const opening=parseFloat(document.getElementById("closeOpening").value)||0;
-  const counted=parseFloat(document.getElementById("closeCounted").value)||0;
+  const opening=rpVal("closeOpening");
+  const counted=rpVal("closeCounted");
   try{
     const z=await run("closeShift",state.token,{date:document.getElementById("closeDateInp").value,opening,counted,note:document.getElementById("closeNote").value.trim(),titipanPayByMitra:mitraPayInputs()});
     lastZ=z;document.getElementById("closePrintBtn").disabled=false;
