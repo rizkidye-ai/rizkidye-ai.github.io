@@ -2768,7 +2768,7 @@ function renderNeraca(){
   let h=`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px"><h4 style="margin:0;color:var(--coffee-dark)">📑 Neraca — per ${idDate(new Date())}</h4><button class="rpt-exp" style="background:var(--coffee)" onclick="openCapital()">💼 Kelola Modal & Aset</button></div>`+neracaRows(N);
   h+=`<div style="margin-top:12px;padding:12px;border-radius:10px;background:${ok?'#eef6ef':'#fff4ee'};border:1px solid ${ok?'#bfe3c4':'#f4cdb6'};color:#3d3428">`;
   h+=ok?`<b style="color:#2f9e44">✓ SEIMBANG</b> — Aset = Liabilitas + Ekuitas.`:`<b style="color:#e8590c">⚠️ Selisih ${rp(Math.abs(N.selisih))}</b> — ${N.selisih>0?'Aset lebih besar':'Aset lebih kecil'}. Sesuaikan Saldo Kas/Bank di menu 💼 Modal & Aset agar seimbang.`;
-  h+=`</div><div class="rpt-actions" style="margin-top:12px"><button class="rpt-exp xls" onclick="exportNeracaExcel()">⬇️ Excel</button><button class="rpt-exp pdf" onclick="exportNeracaPDF()">🖨️ Cetak / PDF</button></div>`;
+  h+=`</div><div class="rpt-actions" style="margin-top:12px"><button class="rpt-exp xls" onclick="exportNeracaExcel()">⬇️ Excel</button><button class="rpt-exp pdf" onclick="exportNeracaPDF()">🖨️ Cetak / PDF</button><button class="rpt-exp" style="background:var(--navy)" onclick="downloadNeracaPDF()">⬇️ Download PDF</button></div>`;
   document.getElementById("neracaView").innerHTML=h;
 }
 function exportNeracaExcel(){
@@ -2780,6 +2780,37 @@ function exportNeracaExcel(){
   t+=r("TOTAL LIAB.+EKUITAS",N.totalLiabilitas+N.totalEkuitas)+r("Selisih",N.selisih)+`</table>`;
   downloadFile("Neraca_3RakanKupi_"+ymd(new Date())+".xls",`<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body>${t}</body></html>`,"application/vnd.ms-excel");
   toast("File Excel diunduh");
+}
+function downloadNeracaPDF(){
+  if(!neracaData){toast("Belum ada data Neraca");return;}
+  if(!(window.jspdf&&window.jspdf.jsPDF)){toast("Library PDF belum siap, coba lagi sebentar");return;}
+  const N=neracaData,ok=Math.abs(N.selisih)<1;
+  const { jsPDF }=window.jspdf;
+  const doc=new jsPDF({unit:"pt",format:"a4"});
+  let y=46;
+  doc.setFont("helvetica","bold");doc.setFontSize(17);doc.setTextColor(43,30,21);
+  doc.text((typeof shopName==="function"?shopName():"3 Rakan Kupi"),40,y);y+=18;
+  doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(120);
+  doc.text("Neraca · per "+idDate(new Date()),40,y);y+=22;
+
+  y=pdfSection(doc,y,"Aset",["Uraian","Jumlah"],[
+    ["Kas tunai (laci)",rp(N.kas)],["Saldo bank",rp(N.bank)],["Piutang usaha",rp(N.piutang)],
+    ["Persediaan",rp(N.persediaan)],["Aset tetap (nilai buku)",rp(N.asetTetap)],["TOTAL ASET",rp(N.totalAset)]
+  ],{columnStyles:{1:{halign:"right"}}});
+
+  y=pdfSection(doc,y,"Liabilitas",["Uraian","Jumlah"],[
+    ["Hutang bank / pinjaman",rp(N.hutangBank)],["Hutang lain",rp(N.hutangLain)],["TOTAL LIABILITAS",rp(N.totalLiabilitas)]
+  ],{columnStyles:{1:{halign:"right"}}});
+
+  y=pdfSection(doc,y,"Ekuitas",["Uraian","Jumlah"],[
+    ["Modal pemilik",rp(N.modal)],["Laba ditahan",rp(N.labaDitahan)],["Prive (pengambilan)","("+rp(N.prive)+")"],
+    ["TOTAL EKUITAS",rp(N.totalEkuitas)],["TOTAL LIABILITAS + EKUITAS",rp(N.totalLiabilitas+N.totalEkuitas)]
+  ],{columnStyles:{1:{halign:"right"}}});
+
+  y=pdfNote(doc,y,ok?"✓ SEIMBANG — Aset = Liabilitas + Ekuitas.":("Selisih "+rp(Math.abs(N.selisih))+" — "+(N.selisih>0?"Aset lebih besar":"Aset lebih kecil")+". Sesuaikan Saldo Kas/Bank di menu Kelola Modal & Aset agar seimbang."));
+
+  doc.save("Neraca_3RakanKupi_"+ymd(new Date())+".pdf");
+  toast("⬇️ PDF diunduh");
 }
 function exportNeracaPDF(){
   if(!neracaData)return;const N=neracaData,ok=Math.abs(N.selisih)<1;
