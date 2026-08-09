@@ -2524,7 +2524,7 @@ function renderReport(d){
     +`<tr><td colspan="2"><b>BEBAN OPERASIONAL</b></td></tr>`
     +(_ok.length?_ok.map(c=>`<tr><td>&nbsp;&nbsp;${c}</td><td class="num">(${rp(P.opCats[c])})</td></tr>`).join(""):`<tr><td>&nbsp;&nbsp;—</td><td class="num">Rp 0</td></tr>`)
     +`<tr><td><b>Total Beban Operasional</b></td><td class="num"><b>(${rp(P.totalOp)})</b></td></tr>`
-    +`<tr style="background:${P.labaBersih>=0?'#eef6ef':'#ffe9e9'}"><td><b>LABA BERSIH</b></td><td class="num"><b style="color:${P.labaBersih>=0?'#2f9e44':'#e03131'}">${rp(P.labaBersih)}</b></td></tr>`
+    +`<tr style="background:${P.labaBersih>=0?'#eef6ef':'#ffe9e9'}"><td style="color:${P.labaBersih>=0?'#1b5e2e':'#8a1414'}"><b>LABA BERSIH</b></td><td class="num" style="color:${P.labaBersih>=0?'#1b5e2e':'#8a1414'}"><b>${rp(P.labaBersih)}</b></td></tr>`
     +`</table><div style="font-size:11px;color:#9b9081;margin-top:6px">*HPP diperkirakan dari total belanja stok periode ini (bukan pemakaian bahan sebenarnya), jadi Laba Kotor bersifat perkiraan. Penjualan dipisah otomatis: kategori Makanan = makanan, lainnya = minuman.</div></div>`;
   let h=labaRugi+`<div class="rpt-cards"><div class="rpt-card"><div class="v">${rp(d.omzet)}</div><div class="l">Omzet</div></div><div class="rpt-card"><div class="v">${d.count}</div><div class="l">Transaksi</div></div><div class="rpt-card"><div class="v">${rp(d.avg)}</div><div class="l">Rata-rata/transaksi</div></div><div class="rpt-card"><div class="v">${rp(d.disc)}</div><div class="l">Total Diskon</div></div></div>`;
   h+=`<div class="rpt-flow"><div class="fc fc-in"><div class="v">${rp(d.omzet)}</div><div class="l">Pemasukan (penjualan)</div></div><div class="fc fc-out"><div class="v">${rp(d.pengeluaran)}</div><div class="l">Pengeluaran</div></div><div class="fc fc-net"><div class="v">${rp(net)}</div><div class="l">Cashflow Bersih</div></div></div>`;
@@ -2742,7 +2742,7 @@ function neracaRows(N){
 function renderNeraca(){
   if(!neracaData)return;const N=neracaData,ok=Math.abs(N.selisih)<1;
   let h=`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px"><h4 style="margin:0;color:var(--coffee-dark)">📑 Neraca — per ${idDate(new Date())}</h4><button class="rpt-exp" style="background:var(--coffee)" onclick="openCapital()">💼 Kelola Modal & Aset</button></div>`+neracaRows(N);
-  h+=`<div style="margin-top:12px;padding:12px;border-radius:10px;background:${ok?'#eef6ef':'#fff4ee'};border:1px solid ${ok?'#bfe3c4':'#f4cdb6'}">`;
+  h+=`<div style="margin-top:12px;padding:12px;border-radius:10px;background:${ok?'#eef6ef':'#fff4ee'};border:1px solid ${ok?'#bfe3c4':'#f4cdb6'};color:#3d3428">`;
   h+=ok?`<b style="color:#2f9e44">✓ SEIMBANG</b> — Aset = Liabilitas + Ekuitas.`:`<b style="color:#e8590c">⚠️ Selisih ${rp(Math.abs(N.selisih))}</b> — ${N.selisih>0?'Aset lebih besar':'Aset lebih kecil'}. Sesuaikan Saldo Kas/Bank di menu 💼 Modal & Aset agar seimbang.`;
   h+=`</div><div class="rpt-actions" style="margin-top:12px"><button class="rpt-exp xls" onclick="exportNeracaExcel()">⬇️ Excel</button><button class="rpt-exp pdf" onclick="exportNeracaPDF()">🖨️ Cetak / PDF</button></div>`;
   document.getElementById("neracaView").innerHTML=h;
