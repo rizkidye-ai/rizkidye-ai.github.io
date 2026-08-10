@@ -2305,7 +2305,12 @@ async function saveCapitalC(){
   const values={modalAwal:rpVal("capModalAwal"),setoran:rpVal("capSetoran"),
     prive:rpVal("capPrive"),kas:rpVal("capKas"),bank:rpVal("capBank"),
     hutangBank:rpVal("capHutangBank"),hutangLain:rpVal("capHutangLain")};
-  try{capData=await run("saveCapital",state.token,{values:values,assets:capData.assets});if(!capData.assets)capData.assets=[];toast("✅ Data Modal & Aset tersimpan");}catch(e){}
+  try{
+    capData=await run("saveCapital",state.token,{values:values,assets:capData.assets});
+    if(!capData.assets)capData.assets=[];
+    if(isOpen("reportOverlay"))await loadNeraca();
+    toast("✅ Data Modal & Aset tersimpan");
+  }catch(e){}
 }
 
 /* ---------- PENGELUARAN ---------- */
