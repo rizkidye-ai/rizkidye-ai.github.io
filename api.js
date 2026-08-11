@@ -184,8 +184,10 @@ async function ymdKey(){
 }
 async function insertSale(row, prefix){
   const key = await ymdKey();
+  // hitung count SEKALI saja (bukan tiap percobaan) — tiap retry cukup geser +i,
+  // jadi satu kali gagal simpan cuma butuh 1 percobaan ulang, bukan 2 round-trip lagi ke server
+  const { count } = await db.from('sales').select('no', { count:'exact', head:true }).like('no', '%'+key+'%');
   for (let i = 0; i < 6; i++) {
-    const { count } = await db.from('sales').select('no', { count:'exact', head:true }).like('no', '%'+key+'%');
     const no = (prefix||'') + key + String((count||0)+1+i).padStart(3,'0');
     const { error } = await db.from('sales').insert([ Object.assign({ no: no }, row) ]);
     if (!error) return no;
@@ -292,7 +294,8 @@ const API = {
         .eq('no', fromNo);
       await cleanTabs();
     }
-    return { tables: await getTablesList(), products: await getProductsList(), no: no };
+    const [tables, products] = await Promise.all([ getTablesList(), getProductsList() ]);
+    return { tables, products, no: no };
   },
 
   async saveTableOrder(token, payload){
@@ -391,7 +394,8 @@ const API = {
       await db.from('tables_').update({ items: cur }).eq('no', tableNo);
     }
     await cleanTabs();
-    return { tables: await getTablesList(), products: await getProductsList(), no: no, remaining: cur.length };
+    const [tables, products] = await Promise.all([ getTablesList(), getProductsList() ]);
+    return { tables, products, no: no, remaining: cur.length };
   },
 
   async setTableStatus(token, no, status){

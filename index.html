@@ -1512,7 +1512,7 @@ async function checkout(){
       })
       .catch(e=>{
         closeOverlay("receiptOverlay");
-        alert("⚠️ PEMBAYARAN GAGAL TERSIMPAN!\n\nKoneksi bermasalah — pesanan TIDAK tercatat.\nSilakan ulangi transaksi.");
+        alert("⚠️ PEMBAYARAN GAGAL TERSIMPAN!\n\nPesanan TIDAK tercatat. Silakan ulangi transaksi.\n\nDetail error (foto ini kalau lapor ke admin):\n"+((e&&e.message)||e||"tidak diketahui"));
         if(!fromTable && cart.length===0){cart=backup.cart;renderProducts();renderCart();toggleCart(true);}
       });
     return;
@@ -2070,7 +2070,7 @@ async function splitPay(){
     })
     .catch(e=>{
       closeOverlay("receiptOverlay");
-      alert("⚠️ PEMBAYARAN SPLIT GAGAL TERSIMPAN!\n\nKoneksi bermasalah — pembayaran TIDAK tercatat.\nSilakan ulangi dari menu meja.");
+      alert("⚠️ PEMBAYARAN SPLIT GAGAL TERSIMPAN!\n\nPembayaran TIDAK tercatat. Silakan ulangi dari menu meja.\n\nDetail error (foto ini kalau lapor ke admin):\n"+((e&&e.message)||e||"tidak diketahui"));
     });
 }
 
