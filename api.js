@@ -184,14 +184,17 @@ async function ymdKey(){
 }
 async function insertSale(row, prefix){
   const key = await ymdKey();
-  // hitung count SEKALI saja (bukan tiap percobaan) — tiap retry cukup geser +i,
-  // jadi satu kali gagal simpan cuma butuh 1 percobaan ulang, bukan 2 round-trip lagi ke server
-  const { count } = await db.from('sales').select('no', { count:'exact', head:true }).like('no', '%'+key+'%');
-  for (let i = 0; i < 6; i++) {
-    const no = (prefix||'') + key + String((count||0)+1+i).padStart(3,'0');
+  let count = (await db.from('sales').select('no', { count:'exact', head:true }).like('no', '%'+key+'%')).count || 0;
+  for (let i = 0; i < 10; i++) {
+    const no = (prefix||'') + key + String(count+1+i).padStart(3,'0');
     const { error } = await db.from('sales').insert([ Object.assign({ no: no }, row) ]);
     if (!error) return no;
     if (!/duplicate|unique/i.test(error.message)) throw new Error(error.message);
+    // nomor struk kebentrok (kasir lain checkout hampir bersamaan). tanpa jeda+hitung-ulang di sini,
+    // dua kasir yang tabrakan akan terus nyoba angka yang SAMA di setiap percobaan (keduanya mulai dari
+    // count yang sama, +i yang sama) — jadi tunggu sebentar (acak, biar tidak lockstep) lalu ambil hitungan terbaru
+    await new Promise(r => setTimeout(r, 80 + Math.random()*180));
+    count = (await db.from('sales').select('no', { count:'exact', head:true }).like('no', '%'+key+'%')).count || count;
   }
   throw new Error('Gagal membuat nomor struk, coba lagi.');
 }
