@@ -1279,6 +1279,7 @@ function startClock(){const el=document.getElementById("hdrClock");const t=()=>e
 function applyResult(r){
   if(!r)return;
   if(r.products)state.products=r.products;
+  else if(r.updatedProducts)r.updatedProducts.forEach(u=>{const p=prod(u.id);if(p)p.stock=u.stock;});
   if(r.tables)state.tables=r.tables;
   if(r.users)state.users=r.users;
   if(r.debts){state.debts=r.debts;updateDebtBadge();if(isOpen("debtOverlay"))renderDebts();}

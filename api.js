@@ -184,19 +184,13 @@ async function ymdKey(){
 }
 async function insertSale(row, prefix){
   const key = await ymdKey();
-  let count = (await db.from('sales').select('no', { count:'exact', head:true }).like('no', '%'+key+'%')).count || 0;
-  for (let i = 0; i < 10; i++) {
-    const no = (prefix||'') + key + String(count+1+i).padStart(3,'0');
-    const { error } = await db.from('sales').insert([ Object.assign({ no: no }, row) ]);
-    if (!error) return no;
-    if (!/duplicate|unique/i.test(error.message)) throw new Error(error.message);
-    // nomor struk kebentrok (kasir lain checkout hampir bersamaan). tanpa jeda+hitung-ulang di sini,
-    // dua kasir yang tabrakan akan terus nyoba angka yang SAMA di setiap percobaan (keduanya mulai dari
-    // count yang sama, +i yang sama) — jadi tunggu sebentar (acak, biar tidak lockstep) lalu ambil hitungan terbaru
-    await new Promise(r => setTimeout(r, 25 + Math.random()*75));
-    count = (await db.from('sales').select('no', { count:'exact', head:true }).like('no', '%'+key+'%')).count || count;
-  }
-  throw new Error('Gagal membuat nomor struk, coba lagi.');
+  // next_sale_no = fungsi database (atomic increment) — 1x panggil, gak ada retry, gak mungkin tabrakan
+  // (dulu di sini ada loop hitung+coba+retry sendiri di JS, sekarang dipindah ke server)
+  const { data: no, error } = await db.rpc('next_sale_no', { p_day_key: key, p_prefix: prefix||'' });
+  if (error) throw new Error(error.message);
+  const { error: e2 } = await db.from('sales').insert([ Object.assign({ no }, row) ]);
+  if (e2) throw new Error(e2.message);
+  return no;
 }
 
 /* ---------- API (nama fungsi SAMA seperti Code.gs) ---------- */
@@ -276,17 +270,29 @@ const API = {
     const items  = payload.items || [];
     const fromNo = payload.fromNo ? Number(payload.fromNo) : null;
 
-    let original = [];
-    if (fromNo) {
-      const { data: t } = await db.from('tables_').select('items').eq('no', fromNo).maybeSingle();
-      if (t && t.items) original = t.items;
+    if (!fromNo) {
+      // jual langsung (bukan dari meja) — jalur cepat: potong stok + nomor struk + catat struk
+      // semua jadi 1x panggilan ke server (fungsi checkout_atomic), bukan 2-3x bolak-balik
+      const key = await ymdKey();
+      const { data: r, error } = await db.rpc('checkout_atomic', {
+        p_items: items, p_kasir: u.name, p_method: payload.method,
+        p_cash: Number(payload.cash)||0, p_sub: Number(payload.sub)||0,
+        p_disc: Number(payload.disc)||0, p_total: Number(payload.total)||0,
+        p_mix: payload.mix || null, p_day_key: key, p_cust: payload.cust||''
+      });
+      need(error);
+      if (r.lowStock && r.lowStock.length) notifyLowStock(r.lowStock);
+      return { no: r.no, updatedProducts: r.updatedProducts || [] };
     }
-    // applyStock (update stok) & insertSale (catat struk) tidak saling butuh hasil satu sama lain,
-    // jadi jalankan BARENGAN — bukan tunggu satu kelar baru mulai yang lain (ini yang bikin "lambat banget")
+
+    // checkout dari meja — tetep pakai jalur lama (perlu diffing sama item lama di meja itu)
+    const { data: t } = await db.from('tables_').select('items').eq('no', fromNo).maybeSingle();
+    const original = (t && t.items) || [];
+
     const [st, no] = await Promise.all([
-      applyStock(items, original, fromNo ? ('Penjualan Meja '+fromNo) : 'Penjualan', u.name),
+      applyStock(items, original, 'Penjualan Meja '+fromNo, u.name),
       insertSale({
-        datetime: new Date().toISOString(), kasir: u.name, table: fromNo ? String(fromNo) : '',
+        datetime: new Date().toISOString(), kasir: u.name, table: String(fromNo),
         method: payload.method, sub: Number(payload.sub)||0, disc: Number(payload.disc)||0,
         total: Number(payload.total)||0, cash: Number(payload.cash)||0,
         kembalian: Math.max(0, (Number(payload.cash)||0) - (Number(payload.total)||0)),
@@ -295,17 +301,10 @@ const API = {
     ]);
     if (st.lowStock.length) notifyLowStock(st.lowStock);
 
-    if (fromNo) {
-      await db.from('tables_').update({ status:'kosong', cust_name:'', note:'', opened:null, items:null })
-        .eq('no', fromNo);
-      await cleanTabs();
-    }
-    // meja cuma perlu di-refresh kalau transaksinya BENERAN dari meja — jual langsung (walk-in)
-    // gak ngubah status meja sama sekali, jadi skip 1 query yang gak perlu itu
-    const [tables, products] = await Promise.all([
-      fromNo ? getTablesList() : Promise.resolve(undefined),
-      getProductsList()
-    ]);
+    await db.from('tables_').update({ status:'kosong', cust_name:'', note:'', opened:null, items:null })
+      .eq('no', fromNo);
+    await cleanTabs();
+    const [tables, products] = await Promise.all([ getTablesList(), getProductsList() ]);
     return { tables, products, no: no };
   },
 
