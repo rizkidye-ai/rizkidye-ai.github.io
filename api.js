@@ -300,7 +300,12 @@ const API = {
         .eq('no', fromNo);
       await cleanTabs();
     }
-    const [tables, products] = await Promise.all([ getTablesList(), getProductsList() ]);
+    // meja cuma perlu di-refresh kalau transaksinya BENERAN dari meja — jual langsung (walk-in)
+    // gak ngubah status meja sama sekali, jadi skip 1 query yang gak perlu itu
+    const [tables, products] = await Promise.all([
+      fromNo ? getTablesList() : Promise.resolve(undefined),
+      getProductsList()
+    ]);
     return { tables, products, no: no };
   },
 
