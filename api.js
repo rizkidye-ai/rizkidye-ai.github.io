@@ -193,7 +193,7 @@ async function insertSale(row, prefix){
     // nomor struk kebentrok (kasir lain checkout hampir bersamaan). tanpa jeda+hitung-ulang di sini,
     // dua kasir yang tabrakan akan terus nyoba angka yang SAMA di setiap percobaan (keduanya mulai dari
     // count yang sama, +i yang sama) — jadi tunggu sebentar (acak, biar tidak lockstep) lalu ambil hitungan terbaru
-    await new Promise(r => setTimeout(r, 80 + Math.random()*180));
+    await new Promise(r => setTimeout(r, 25 + Math.random()*75));
     count = (await db.from('sales').select('no', { count:'exact', head:true }).like('no', '%'+key+'%')).count || count;
   }
   throw new Error('Gagal membuat nomor struk, coba lagi.');
@@ -281,16 +281,19 @@ const API = {
       const { data: t } = await db.from('tables_').select('items').eq('no', fromNo).maybeSingle();
       if (t && t.items) original = t.items;
     }
-    const st = await applyStock(items, original, fromNo ? ('Penjualan Meja '+fromNo) : 'Penjualan', u.name);
+    // applyStock (update stok) & insertSale (catat struk) tidak saling butuh hasil satu sama lain,
+    // jadi jalankan BARENGAN — bukan tunggu satu kelar baru mulai yang lain (ini yang bikin "lambat banget")
+    const [st, no] = await Promise.all([
+      applyStock(items, original, fromNo ? ('Penjualan Meja '+fromNo) : 'Penjualan', u.name),
+      insertSale({
+        datetime: new Date().toISOString(), kasir: u.name, table: fromNo ? String(fromNo) : '',
+        method: payload.method, sub: Number(payload.sub)||0, disc: Number(payload.disc)||0,
+        total: Number(payload.total)||0, cash: Number(payload.cash)||0,
+        kembalian: Math.max(0, (Number(payload.cash)||0) - (Number(payload.total)||0)),
+        items: items, mix: payload.mix || null
+      })
+    ]);
     if (st.lowStock.length) notifyLowStock(st.lowStock);
-
-    const no = await insertSale({
-      datetime: new Date().toISOString(), kasir: u.name, table: fromNo ? String(fromNo) : '',
-      method: payload.method, sub: Number(payload.sub)||0, disc: Number(payload.disc)||0,
-      total: Number(payload.total)||0, cash: Number(payload.cash)||0,
-      kembalian: Math.max(0, (Number(payload.cash)||0) - (Number(payload.total)||0)),
-      items: items, mix: payload.mix || null
-    });
 
     if (fromNo) {
       await db.from('tables_').update({ status:'kosong', cust_name:'', note:'', opened:null, items:null })
@@ -380,15 +383,17 @@ const API = {
       if (ex > 0) extra.push({ id: pi.id, qty: ex });
     });
     cur = cur.filter(c => Number(c.qty) > 0);
-    if (extra.length) await applyStock(extra, [], 'Split tambahan', u.name);
-
-    const no = await insertSale({
-      datetime: new Date().toISOString(), kasir: u.name, table: String(tableNo),
-      method: payload.method, sub: Number(payload.sub)||0, disc: Number(payload.disc)||0,
-      total: Number(payload.total)||0, cash: Number(payload.cash)||0,
-      kembalian: Math.max(0, (Number(payload.cash)||0) - (Number(payload.total)||0)),
-      items: payItems, mix: payload.mix || null
-    });
+    // sama seperti checkout: potong stok & catat struk jalan BARENGAN, tidak saling nunggu
+    const [, no] = await Promise.all([
+      extra.length ? applyStock(extra, [], 'Split tambahan', u.name) : Promise.resolve(),
+      insertSale({
+        datetime: new Date().toISOString(), kasir: u.name, table: String(tableNo),
+        method: payload.method, sub: Number(payload.sub)||0, disc: Number(payload.disc)||0,
+        total: Number(payload.total)||0, cash: Number(payload.cash)||0,
+        kembalian: Math.max(0, (Number(payload.cash)||0) - (Number(payload.total)||0)),
+        items: payItems, mix: payload.mix || null
+      })
+    ]);
 
     if (cur.length === 0) {
       await db.from('tables_').update({ status:'kosong', cust_name:'', note:'', opened:null, items:null })
