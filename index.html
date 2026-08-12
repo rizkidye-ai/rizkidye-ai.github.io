@@ -476,6 +476,7 @@
           <button class="tb-btn" id="btnConsReport" onclick="openConsReport()"><span class="mi-ico">📊</span><span class="mi-lbl">Laporan Konsumsi</span></button>
           <button class="tb-btn" id="btnAnalisa" onclick="openAnalisa()"><span class="mi-ico">🧠</span><span class="mi-lbl">Analisa Belanja</span></button>
           <button class="tb-btn" id="btnEval" onclick="openEval()"><span class="mi-ico">📈</span><span class="mi-lbl">Evaluasi Bulanan</span></button>
+          <button class="tb-btn" id="btnPribadi" onclick="openPribadi()"><span class="mi-ico">🔒</span><span class="mi-lbl">Rekap Pribadi</span></button>
         </div>
         <div class="mgrp g-kelola">
           <div class="mgrp-label">Kelola</div>
@@ -1140,6 +1141,22 @@
     </div>
   </div>
 </div>
+<!-- REKAP PRIBADI (Admin/Owner) -->
+<div class="overlay hidden" id="pribadiOverlay">
+  <div class="sheet" style="max-width:620px">
+    <header><h3>🔒 Rekap Pribadi</h3><button onclick="closeOverlay('pribadiOverlay')">✕</button></header>
+    <div class="sheet-body">
+      <div style="font-size:12px;color:#6B5D52;margin-bottom:10px">Cuma kelihatan sama Admin/Owner. Pengeluaran & Uang Laci otomatis, QR diisi manual per transaksi.</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <button class="rpt-p" onclick="shiftPribadiDay(-1)">◀</button>
+        <input id="pribadiDate" type="date" style="flex:1;padding:8px;border:1px solid var(--line);border-radius:9px;font-size:13px;background:var(--bg);color:var(--txt)" onchange="loadPribadi()">
+        <button class="rpt-p" onclick="shiftPribadiDay(1)">▶</button>
+        <button class="rpt-p" onclick="jumpPribadiToday()">Hari Ini</button>
+      </div>
+      <div id="pribadiBody">Memuat...</div>
+    </div>
+  </div>
+</div>
 <!-- DASHBOARD -->
 <div class="overlay hidden" id="dashOverlay">
   <div class="sheet" style="max-width:920px">
@@ -1270,7 +1287,7 @@ async function enterApp(){
   document.getElementById("menuStaffName").textContent=state.user.name;
   document.getElementById("menuStaffRole").textContent=state.user.role;
   const adm=isAdmin();
-  ["btnInv","btnProd","btnReport","btnUsers","btnExpense","btnOpname","btnAnalisa"].forEach(b=>document.getElementById(b).classList.toggle("hidden",!adm));
+  ["btnInv","btnProd","btnReport","btnUsers","btnExpense","btnOpname","btnAnalisa","btnPribadi"].forEach(b=>document.getElementById(b).classList.toggle("hidden",!adm));
   document.getElementById("btnCapital")?.classList.toggle("hidden",!isOwner());
   document.getElementById("btnShop").classList.toggle("hidden",!isOwner());
   document.getElementById("btnEval").classList.toggle("hidden",!isOwner());
@@ -3642,6 +3659,80 @@ function renderAnalisa(){
 }
 /* ---------- EVALUASI BULANAN ---------- */
 let evMode="bulan";
+let pribadiDate=null;
+function openPribadi(){
+  if(!isAdmin()){toast("Khusus Admin/Owner");return;}
+  pribadiDate=ymd(bizNow());
+  document.getElementById("pribadiDate").value=pribadiDate;
+  document.getElementById("pribadiOverlay").classList.remove("hidden");
+  loadPribadi();
+}
+function shiftPribadiDay(delta){
+  const d=new Date(pribadiDate+"T00:00:00");d.setDate(d.getDate()+delta);
+  pribadiDate=ymd(d);document.getElementById("pribadiDate").value=pribadiDate;
+  loadPribadi();
+}
+function jumpPribadiToday(){
+  pribadiDate=ymd(bizNow());document.getElementById("pribadiDate").value=pribadiDate;
+  loadPribadi();
+}
+async function loadPribadi(){
+  pribadiDate=document.getElementById("pribadiDate").value||ymd(bizNow());
+  const body=document.getElementById("pribadiBody");
+  body.innerHTML="Memuat...";
+  try{
+    const r=await run("getPersonalRecap",state.token,pribadiDate);
+    renderPribadi(r);
+  }catch(e){body.innerHTML='<div style="color:var(--void)">Gagal memuat.</div>';}
+}
+function renderPribadi(r){
+  const body=document.getElementById("pribadiBody");
+  let h=`<div class="rpt-cards" style="grid-template-columns:repeat(3,1fr)">
+    <div class="rpt-card"><div class="v">${rp(r.qrTotal)}</div><div class="l">Total QR</div></div>
+    <div class="rpt-card"><div class="v">${r.laciDone?rp(r.laci):'—'}</div><div class="l">Uang Laci</div></div>
+    <div class="rpt-card"><div class="v">${rp(r.expensesTotal)}</div><div class="l">Pengeluaran</div></div>
+  </div>`;
+  if(!r.laciDone)h+=`<div style="font-size:12px;color:#8F4216;background:rgba(184,84,31,.1);border-radius:9px;padding:8px 10px;margin-bottom:12px">⚠️ Tutup Kas tanggal ini belum dilakukan — Uang Laci masih dianggap 0.</div>`;
+  h+=`<div class="rpt-flow" style="grid-template-columns:repeat(2,1fr)">
+    <div class="fc fc-in"><div class="v">${rp(r.pemasukan)}</div><div class="l">Pemasukan</div></div>
+    <div class="fc fc-net"><div class="v">${rp(r.sisa)}</div><div class="l">Sisa</div></div>
+  </div>`;
+  h+=`<div class="rpt-sec"><h4>💸 Pengeluaran per Kategori</h4>`;
+  h+= !r.expensesByCat.length ? `<div style="font-size:12.5px;color:#6B5D52">Belum ada pengeluaran tanggal ini.</div>`
+    : `<table class="rpt-table"><tbody>${r.expensesByCat.map(x=>`<tr><td>${escTxt(x.cat)}</td><td class="num">${rp(x.total)}</td></tr>`).join("")}</tbody></table>`;
+  h+=`</div>`;
+  h+=`<div class="rpt-sec"><h4>📱 QR Manual</h4>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input id="pribadiQrAmt" type="text" inputmode="numeric" placeholder="Jumlah (Rp)" style="flex:1;padding:9px;border:1.5px solid var(--line);border-radius:9px" oninput="onRupiahInput(this)">
+      <input id="pribadiQrNote" placeholder="Catatan (opsional)" style="flex:1;padding:9px;border:1.5px solid var(--line);border-radius:9px">
+      <button style="width:auto;margin:0;padding:9px 16px;background:var(--coffee);color:#fff;border-radius:9px;font-weight:600" onclick="addQrEntryUI()">+ Tambah</button>
+    </div>`;
+  h+= !r.qrEntries.length ? `<div style="font-size:12.5px;color:#6B5D52">Belum ada entri QR tanggal ini.</div>`
+    : r.qrEntries.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">
+        <div><b>${rp(x.amount)}</b>${x.note?` <span style="color:#6B5D52;font-size:12px">· ${escTxt(x.note)}</span>`:''}</div>
+        <button style="width:auto;margin:0;padding:5px 10px;background:none;color:var(--void);font-size:12px" onclick="deleteQrEntryUI('${x.id}')">Hapus</button>
+      </div>`).join("");
+  h+=`</div>`;
+  body.innerHTML=h;
+}
+async function addQrEntryUI(){
+  const amount=rpVal("pribadiQrAmt");
+  if(!(amount>0)){toast("Isi jumlah QR dulu");return;}
+  const note=document.getElementById("pribadiQrNote").value.trim();
+  try{
+    const r=await run("addQrEntry",state.token,{date:pribadiDate,amount,note});
+    document.getElementById("pribadiQrAmt").value="";
+    document.getElementById("pribadiQrNote").value="";
+    renderPribadi(r);
+  }catch(e){}
+}
+async function deleteQrEntryUI(id){
+  if(!confirm("Hapus entri QR ini?"))return;
+  try{
+    const r=await run("deleteQrEntry",state.token,id,pribadiDate);
+    renderPribadi(r);
+  }catch(e){}
+}
 function openEval(){
   if(!isOwner()){toast("Khusus Owner");return;}
   document.getElementById("evalMonth").value=ymd(bizNow()).slice(0,7);

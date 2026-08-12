@@ -534,6 +534,56 @@ const API = {
     })).sort((a,b)=> b.date.localeCompare(a.date) || ((b.datetime||0)-(a.datetime||0)));
   },
 
+  /* ================= REKAP PRIBADI (khusus Admin/Owner) ================= */
+
+  async getPersonalRecap(token, date){
+    const u = requireUser(token);
+    if (!isAdminRole(u.role)) throw new Error('Akses ditolak — khusus Admin/Owner.');
+    const day = date || bizYmd(new Date());
+
+    const [exRes, qrRes, ccRes] = await Promise.all([
+      db.from('expenses').select('cat,amount').eq('date', day),
+      db.from('qr_entries').select('*').eq('date', day).order('datetime'),
+      db.from('cash_close').select('counted').eq('date', day).maybeSingle()
+    ]);
+    need(exRes.error); need(qrRes.error);
+
+    const byCat = {};
+    (exRes.data||[]).forEach(e => { const c = e.cat || 'Lain-lain'; byCat[c] = (byCat[c]||0) + (Number(e.amount)||0); });
+    const expensesByCat = Object.keys(byCat).map(cat => ({ cat, total: byCat[cat] })).sort((a,b) => b.total - a.total);
+    const expensesTotal = expensesByCat.reduce((s,x) => s + x.total, 0);
+
+    const qrEntries = (qrRes.data||[]).map(r => ({ id:r.id, amount:Number(r.amount)||0, note:r.note||'',
+      datetime: r.datetime ? new Date(r.datetime).getTime() : null }));
+    const qrTotal = qrEntries.reduce((s,x) => s + x.amount, 0);
+
+    const laciDone = !!(ccRes.data);
+    const laci = laciDone ? (Number(ccRes.data.counted)||0) : 0;
+
+    const pemasukan = qrTotal + laci + expensesTotal;
+    const sisa = pemasukan - expensesTotal;
+
+    return { date: day, expensesByCat, expensesTotal, qrEntries, qrTotal, laci, laciDone, pemasukan, sisa };
+  },
+
+  async addQrEntry(token, payload){
+    const u = requireUser(token);
+    if (!isAdminRole(u.role)) throw new Error('Akses ditolak — khusus Admin/Owner.');
+    const amount = Number(payload.amount)||0;
+    if (!(amount > 0)) throw new Error('Jumlah harus lebih dari 0.');
+    const day = payload.date || bizYmd(new Date());
+    need(( await db.from('qr_entries').insert([{ id:'QR'+Date.now()+Math.floor(Math.random()*1000),
+      date: day, amount, note: payload.note||'', by_user: u.name, datetime: new Date().toISOString() }]) ).error);
+    return await API.getPersonalRecap(token, day);
+  },
+
+  async deleteQrEntry(token, id, date){
+    const u = requireUser(token);
+    if (!isAdminRole(u.role)) throw new Error('Akses ditolak — khusus Admin/Owner.');
+    need(( await db.from('qr_entries').delete().eq('id', id) ).error);
+    return await API.getPersonalRecap(token, date);
+  },
+
   /* ================= CHAT TIM ================= */
 
   async getChatMessages(token, sinceId){
