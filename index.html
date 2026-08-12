@@ -3715,10 +3715,10 @@ function renderPribadi(r){
   h+=`<div class="rpt-sec"><h4>📱 QR Manual</h4>
     <div style="display:flex;gap:8px;margin-bottom:4px;align-items:flex-start">
       <div style="flex:1">
-        <input id="pribadiQrAmt" type="text" inputmode="numeric" placeholder="cth: 15 → Rp 15.000" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:9px" oninput="updateQrKPreview(this)">
+        <input id="pribadiQrAmt" type="text" inputmode="numeric" placeholder="cth: 15 → Rp 15.000" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:9px" oninput="updateQrKPreview(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();addQrEntryUI();}">
         <div style="font-size:11px;color:#6B5D52;margin-top:3px">Ketik dalam ribuan — 15 jadi <b id="pribadiQrPreview">Rp 0</b>, gak usah ketik nolnya</div>
       </div>
-      <input id="pribadiQrNote" placeholder="Catatan (opsional)" style="flex:1;padding:9px;border:1.5px solid var(--line);border-radius:9px">
+      <input id="pribadiQrNote" placeholder="Catatan (opsional)" style="flex:1;padding:9px;border:1.5px solid var(--line);border-radius:9px" onkeydown="if(event.key==='Enter'){event.preventDefault();addQrEntryUI();}">
       <button style="width:auto;margin:0;padding:9px 16px;background:var(--coffee);color:#fff;border-radius:9px;font-weight:600" onclick="addQrEntryUI()">+ Tambah</button>
     </div>
     <div style="margin-bottom:10px"></div>`;
