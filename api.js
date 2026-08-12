@@ -573,6 +573,42 @@ const API = {
     return { date: day, expensesByCat, expensesTotal, qrEntries, qrTotal, laci, laciDone, pemasukan, sisa };
   },
 
+  async getPersonalRecapRange(token, fromYmd, toYmd){
+    const u = requireUser(token);
+    if (!isAdminRole(u.role)) throw new Error('Akses ditolak — khusus Admin/Owner.');
+
+    const [exRes, qrRes, ccRes] = await Promise.all([
+      db.from('expenses').select('cat,name,note,amount,type').gte('date', fromYmd).lte('date', toYmd),
+      db.from('qr_entries').select('*').gte('date', fromYmd).lte('date', toYmd).order('datetime'),
+      db.from('cash_close').select('date,counted').gte('date', fromYmd).lte('date', toYmd)
+    ]);
+    need(exRes.error); need(qrRes.error); need(ccRes.error);
+
+    const byCat = {};
+    (exRes.data||[]).filter(e => e.type !== 'Bulanan').forEach(e => {
+      const c = e.cat || 'Lain-lain';
+      if (!byCat[c]) byCat[c] = { cat: c, total: 0, items: [] };
+      byCat[c].total += Number(e.amount)||0;
+      byCat[c].items.push({ name: e.name||'', note: e.note||'', amount: Number(e.amount)||0 });
+    });
+    const expensesByCat = Object.values(byCat).sort((a,b) => b.total - a.total);
+    const expensesTotal = expensesByCat.reduce((s,x) => s + x.total, 0);
+
+    const qrEntries = (qrRes.data||[]).map(r => ({ id:r.id, amount:Number(r.amount)||0, note:r.note||'',
+      datetime: r.datetime ? new Date(r.datetime).getTime() : null }));
+    const qrTotal = qrEntries.reduce((s,x) => s + x.amount, 0);
+
+    // "Laci" digabung dari SEMUA Tutup Kas dalam periode itu (bukan cuma 1 hari)
+    const laciDays = (ccRes.data||[]).length;
+    const laci = (ccRes.data||[]).reduce((s,x) => s + (Number(x.counted)||0), 0);
+
+    const pemasukan = qrTotal + laci + expensesTotal;
+    const sisa = pemasukan - expensesTotal;
+
+    return { from: fromYmd, to: toYmd, isRange: true, expensesByCat, expensesTotal, qrEntries, qrTotal,
+      laci, laciDays, laciDone: laciDays > 0, pemasukan, sisa };
+  },
+
   async addQrEntry(token, payload){
     const u = requireUser(token);
     if (!isAdminRole(u.role)) throw new Error('Akses ditolak — khusus Admin/Owner.');

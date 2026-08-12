@@ -1147,12 +1147,18 @@
     <header><h3>🔒 Rekap Pribadi</h3><button onclick="closeOverlay('pribadiOverlay')">✕</button></header>
     <div class="sheet-body">
       <div style="font-size:12px;color:#6B5D52;margin-bottom:10px">Cuma kelihatan sama Admin/Owner. Pengeluaran & Uang Laci otomatis, QR diisi manual per transaksi.</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-        <button class="rpt-p" onclick="shiftPribadiDay(-1)">◀</button>
-        <input id="pribadiDate" type="date" style="flex:1;padding:8px;border:1px solid var(--line);border-radius:9px;font-size:13px;background:var(--bg);color:var(--txt)" onchange="loadPribadi()">
-        <button class="rpt-p" onclick="shiftPribadiDay(1)">▶</button>
-        <button class="rpt-p" onclick="jumpPribadiToday()">Hari Ini</button>
+      <div class="rpt-presets" style="margin-bottom:10px">
+        <button class="rpt-p on" id="pri-hari" onclick="setPribadiPreset('hari')">Hari Ini</button>
+        <button class="rpt-p" id="pri-kemarin" onclick="setPribadiPreset('kemarin')">Kemarin</button>
+        <button class="rpt-p" id="pri-bulan" onclick="setPribadiPreset('bulan')">Bulan Ini</button>
+        <button class="rpt-p" id="pri-tahun" onclick="setPribadiPreset('tahun')">Tahun Ini</button>
       </div>
+      <div id="pribadiDayNav" style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <button class="rpt-p" onclick="shiftPribadiDay(-1)">◀</button>
+        <input id="pribadiDate" type="date" style="flex:1;padding:8px;border:1px solid var(--line);border-radius:9px;font-size:13px;background:var(--bg);color:var(--txt)" onchange="pribadiDateChanged()">
+        <button class="rpt-p" onclick="shiftPribadiDay(1)">▶</button>
+      </div>
+      <div id="pribadiRangeLabel" class="rpt-range hidden" style="margin-bottom:14px"></div>
       <div class="rpt-actions" style="margin-bottom:12px;flex-wrap:wrap">
         <button class="rpt-exp pdf" onclick="printPribadi()">🖨️ Cetak</button>
         <button class="rpt-exp" style="background:var(--navy)" onclick="downloadPribadiPDF()">⬇️ Download PDF</button>
@@ -3667,22 +3673,49 @@ function renderAnalisa(){
 }
 /* ---------- EVALUASI BULANAN ---------- */
 let evMode="bulan";
-let pribadiDate=null,pribadiData=null;
+let pribadiDate=null,pribadiData=null,pribadiMode="hari",pribadiFrom=null,pribadiTo=null;
 function openPribadi(){
   if(!isAdmin()){toast("Khusus Admin/Owner");return;}
-  pribadiDate=ymd(bizNow());
-  document.getElementById("pribadiDate").value=pribadiDate;
   document.getElementById("pribadiOverlay").classList.remove("hidden");
+  setPribadiPreset("hari");
+}
+function pribadiPresetButtons(){return ["hari","kemarin","bulan","tahun"];}
+function setPribadiPreset(mode){
+  pribadiMode=mode;
+  pribadiPresetButtons().forEach(m=>document.getElementById("pri-"+m).classList.toggle("on",m===mode));
+  const dayNav=document.getElementById("pribadiDayNav"),rangeLabel=document.getElementById("pribadiRangeLabel");
+  if(mode==="hari"||mode==="kemarin"){
+    dayNav.classList.remove("hidden");rangeLabel.classList.add("hidden");
+    const d=bizNow();if(mode==="kemarin")d.setDate(d.getDate()-1);
+    pribadiDate=ymd(d);document.getElementById("pribadiDate").value=pribadiDate;
+    loadPribadi();
+  }else{
+    dayNav.classList.add("hidden");rangeLabel.classList.remove("hidden");
+    const now=bizNow();
+    const from=mode==="bulan"?new Date(now.getFullYear(),now.getMonth(),1):new Date(now.getFullYear(),0,1);
+    pribadiFrom=ymd(from);pribadiTo=ymd(now);
+    rangeLabel.textContent="📅 "+idDate(from)+" — "+idDate(now);
+    loadPribadiRange(pribadiFrom,pribadiTo);
+  }
+}
+function pribadiDateChanged(){
+  pribadiMode=null;
+  pribadiPresetButtons().forEach(m=>document.getElementById("pri-"+m).classList.remove("on"));
   loadPribadi();
 }
 function shiftPribadiDay(delta){
   const d=new Date(pribadiDate+"T00:00:00");d.setDate(d.getDate()+delta);
   pribadiDate=ymd(d);document.getElementById("pribadiDate").value=pribadiDate;
+  pribadiMode=null;pribadiPresetButtons().forEach(m=>document.getElementById("pri-"+m).classList.remove("on"));
   loadPribadi();
 }
-function jumpPribadiToday(){
-  pribadiDate=ymd(bizNow());document.getElementById("pribadiDate").value=pribadiDate;
-  loadPribadi();
+async function loadPribadiRange(from,to){
+  const body=document.getElementById("pribadiBody");
+  body.innerHTML="Memuat...";
+  try{
+    const r=await run("getPersonalRecapRange",state.token,from,to);
+    renderPribadi(r);
+  }catch(e){body.innerHTML='<div style="color:var(--void)">⚠️ Gagal memuat: '+escTxt((e&&e.message)||e)+'<br><button style="width:auto;margin-top:10px;padding:8px 14px;background:var(--coffee);color:#fff;border-radius:9px" onclick="loadPribadiRange(\''+from+"','"+to+'\')">Coba Lagi</button></div>';}
 }
 async function loadPribadi(){
   pribadiDate=document.getElementById("pribadiDate").value||ymd(bizNow());
@@ -3696,25 +3729,27 @@ async function loadPribadi(){
 function renderPribadi(r){
   pribadiData=r;
   const body=document.getElementById("pribadiBody");
+  const laciLabel=r.isRange?("Uang Laci"+(r.laciDays?` (${r.laciDays}x Tutup Kas)`:"")):"Uang Laci";
   let h=`<div class="rpt-cards" style="grid-template-columns:repeat(3,1fr)">
     <div class="rpt-card"><div class="v">${rp(r.qrTotal)}</div><div class="l">Total QR</div></div>
-    <div class="rpt-card"><div class="v">${r.laciDone?rp(r.laci):'—'}</div><div class="l">Uang Laci</div></div>
+    <div class="rpt-card"><div class="v">${r.laciDone?rp(r.laci):'—'}</div><div class="l">${laciLabel}</div></div>
     <div class="rpt-card"><div class="v">${rp(r.expensesTotal)}</div><div class="l">Pengeluaran</div></div>
   </div>`;
-  if(!r.laciDone)h+=`<div style="font-size:12px;color:#8F4216;background:rgba(184,84,31,.1);border-radius:9px;padding:8px 10px;margin-bottom:12px">⚠️ Tutup Kas tanggal ini belum dilakukan — Uang Laci masih dianggap 0.</div>`;
+  if(!r.laciDone)h+=`<div style="font-size:12px;color:#8F4216;background:rgba(184,84,31,.1);border-radius:9px;padding:8px 10px;margin-bottom:12px">⚠️ ${r.isRange?'Belum ada Tutup Kas sama sekali di periode ini':'Tutup Kas tanggal ini belum dilakukan'} — Uang Laci masih dianggap 0.</div>`;
   h+=`<div class="rpt-flow" style="grid-template-columns:repeat(2,1fr)">
     <div class="fc fc-in"><div class="v">${rp(r.pemasukan)}</div><div class="l">Pemasukan</div></div>
     <div class="fc fc-net"><div class="v">${rp(r.sisa)}</div><div class="l">Sisa</div></div>
   </div>`;
   h+=`<div class="rpt-sec"><h4>💸 Pengeluaran per Kategori</h4>`;
-  h+= !r.expensesByCat.length ? `<div style="font-size:12.5px;color:#6B5D52">Belum ada pengeluaran tanggal ini.</div>`
+  h+= !r.expensesByCat.length ? `<div style="font-size:12.5px;color:#6B5D52">Belum ada pengeluaran ${r.isRange?'di periode ini':'tanggal ini'}.</div>`
     : r.expensesByCat.map(c=>`
       <div style="margin-bottom:10px">
         <div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;padding:6px 0;border-bottom:1px solid var(--line-hot)"><span>${escTxt(c.cat)}</span><span>${rp(c.total)}</span></div>
         ${c.items.map(it=>`<div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#6B5D52;padding:4px 0 4px 10px"><span>${escTxt(it.name)}${it.note?' · '+escTxt(it.note):''}</span><span style="flex-shrink:0">${rp(it.amount)}</span></div>`).join("")}
       </div>`).join("");
   h+=`</div>`;
-  h+=`<div class="rpt-sec"><h4>📱 QR Manual</h4>
+  h+=`<div class="rpt-sec"><h4>📱 QR Manual</h4>`;
+  h+= r.isRange ? `<div style="font-size:11.5px;color:#6B5D52;margin-bottom:8px">Nambah entri QR baru cuma bisa dari tampilan Hari Ini/Kemarin (perlu pilih tanggalnya).</div>` : `
     <div style="display:flex;gap:8px;margin-bottom:4px;align-items:flex-start">
       <div style="flex:1">
         <input id="pribadiQrAmt" type="text" inputmode="numeric" placeholder="cth: 15 → Rp 15.000" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:9px" oninput="updateQrKPreview(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();addQrEntryUI();}">
@@ -3724,7 +3759,7 @@ function renderPribadi(r){
       <button style="width:auto;margin:0;padding:9px 16px;background:var(--coffee);color:#fff;border-radius:9px;font-weight:600" onclick="addQrEntryUI()">+ Tambah</button>
     </div>
     <div style="margin-bottom:10px"></div>`;
-  h+= !r.qrEntries.length ? `<div style="font-size:12.5px;color:#6B5D52">Belum ada entri QR tanggal ini.</div>`
+  h+= !r.qrEntries.length ? `<div style="font-size:12.5px;color:#6B5D52">Belum ada entri QR ${r.isRange?'di periode ini':'tanggal ini'}.</div>`
     : r.qrEntries.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">
         <div><b>${rp(x.amount)}</b>${x.note?` <span style="color:#6B5D52;font-size:12px">· ${escTxt(x.note)}</span>`:''}</div>
         <button style="width:auto;margin:0;padding:5px 10px;background:none;color:var(--void);font-size:12px" onclick="deleteQrEntryUI('${x.id}')">Hapus</button>
@@ -3752,12 +3787,15 @@ async function addQrEntryUI(){
 async function deleteQrEntryUI(id){
   if(!confirm("Hapus entri QR ini?"))return;
   try{
-    const r=await run("deleteQrEntry",state.token,id,pribadiDate);
-    renderPribadi(r);
+    await run("deleteQrEntry",state.token,id,pribadiDate);
+    // backend selalu balikin rekap harian — kalau lagi mode Bulan/Tahun, muat ulang periode itu (bukan hasil bawaan dari server)
+    if(pribadiMode==="bulan"||pribadiMode==="tahun")await loadPribadiRange(pribadiFrom,pribadiTo);
+    else await loadPribadi();
   }catch(e){}
 }
 function pribadiHtmlBody(r){
-  let b=`<h1>🔒 Rekap Pribadi — ${typeof shopName==="function"?shopName():"3 Rakan Kupi"}</h1><h2>Tanggal: ${idDate(new Date(r.date+"T00:00:00"))}</h2>`;
+  const periodLabel=r.isRange?("Periode: "+idDate(new Date(r.from+"T00:00:00"))+" — "+idDate(new Date(r.to+"T00:00:00"))):("Tanggal: "+idDate(new Date(r.date+"T00:00:00")));
+  let b=`<h1>🔒 Rekap Pribadi — ${typeof shopName==="function"?shopName():"3 Rakan Kupi"}</h1><h2>${periodLabel}</h2>`;
   b+=`<div class="sum" style="background:#eef6ef">Pemasukan<span>${rp(r.pemasukan)}</span></div>`;
   b+=`<div class="sum" style="background:#eef2fa">Sisa<span>${rp(r.sisa)}</span></div>`;
   b+=`<table><tr><td>Total QR</td><td class="num">${rp(r.qrTotal)}</td></tr><tr><td>Uang Laci</td><td class="num">${r.laciDone?rp(r.laci):'— (belum Tutup Kas)'}</td></tr><tr><td>Total Pengeluaran</td><td class="num">${rp(r.expensesTotal)}</td></tr></table>`;
@@ -3774,7 +3812,8 @@ function printPribadi(){
   if(!pribadiData){toast("Belum ada data");return;}
   const r=pribadiData;
   const css=`body{font-family:Arial,sans-serif;color:#222;padding:24px}h1{font-size:18px;margin:0}h2{font-size:13px;color:#666;margin:2px 0 16px;font-weight:normal}h3{font-size:13px;margin:16px 0 6px}table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}td.num,th.num{text-align:right}.sub{color:#777;font-size:11px}.sum{display:flex;justify-content:space-between;padding:8px 12px;border-radius:8px;margin-bottom:6px;font-weight:bold}`;
-  const doc=`<html><head><meta charset="utf-8"><title>Rekap Pribadi ${r.date}</title><style>${css}</style></head><body>${pribadiHtmlBody(r)}<script>window.onload=function(){setTimeout(function(){window.print();},300);}<\/script></body></html>`;
+  const fnameSuffix=r.isRange?(r.from+"_"+r.to):r.date;
+  const doc=`<html><head><meta charset="utf-8"><title>Rekap Pribadi ${fnameSuffix}</title><style>${css}</style></head><body>${pribadiHtmlBody(r)}<script>window.onload=function(){setTimeout(function(){window.print();},300);}<\/script></body></html>`;
   const w=window.open("","_blank","width=820,height=900");if(!w){toast("Popup diblokir — izinkan popup untuk cetak/PDF");return;}
   w.document.open();w.document.write(doc);w.document.close();
 }
@@ -3788,7 +3827,7 @@ function downloadPribadiImage(){
   document.body.appendChild(wrap);
   html2canvas(wrap,{backgroundColor:"#fff",scale:2}).then(canvas=>{
     const link=document.createElement("a");
-    link.download="RekapPribadi_"+r.date+".png";
+    link.download="RekapPribadi_"+(r.isRange?(r.from+"_"+r.to):r.date)+".png";
     link.href=canvas.toDataURL("image/png");
     link.click();
     document.body.removeChild(wrap);
@@ -3808,7 +3847,8 @@ function downloadPribadiPDF(){
   doc.setFont("helvetica","bold");doc.setFontSize(17);doc.setTextColor(43,30,21);
   doc.text((typeof shopName==="function"?shopName():"3 Rakan Kupi"),40,y);y+=18;
   doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(120);
-  doc.text("Rekap Pribadi · Tanggal: "+idDate(new Date(r.date+"T00:00:00")),40,y);y+=22;
+  const periodLabel=r.isRange?("Periode: "+idDate(new Date(r.from+"T00:00:00"))+" — "+idDate(new Date(r.to+"T00:00:00"))):("Tanggal: "+idDate(new Date(r.date+"T00:00:00")));
+  doc.text("Rekap Pribadi · "+periodLabel,40,y);y+=22;
 
   y=pdfSection(doc,y,null,["Ringkasan",""],[
     ["Total QR",rp(r.qrTotal)],
@@ -3829,7 +3869,7 @@ function downloadPribadiPDF(){
     y=pdfSection(doc,y,"QR Manual",["Catatan","Jumlah"],r.qrEntries.map(x=>[x.note||"—",rp(x.amount)]),{columnStyles:{1:{halign:"right"}}});
   }
 
-  doc.save("RekapPribadi_"+r.date+".pdf");
+  doc.save("RekapPribadi_"+(r.isRange?(r.from+"_"+r.to):r.date)+".pdf");
   toast("⬇️ PDF diunduh");
 }
 function openEval(){
