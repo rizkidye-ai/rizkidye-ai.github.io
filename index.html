@@ -3743,6 +3743,8 @@ async function addQrEntryUI(){
     document.getElementById("pribadiQrAmt").value="";
     document.getElementById("pribadiQrNote").value="";
     renderPribadi(r);
+    // render ulang bikin field-nya kebentuk baru (fokus ilang) — balikin fokus ke Jumlah biar bisa lanjut ketik tanpa klik lagi
+    document.getElementById("pribadiQrAmt")?.focus();
   }catch(e){}
 }
 async function deleteQrEntryUI(id){
