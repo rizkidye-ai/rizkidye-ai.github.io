@@ -542,14 +542,16 @@ const API = {
     const day = date || bizYmd(new Date());
 
     const [exRes, qrRes, ccRes] = await Promise.all([
-      db.from('expenses').select('cat,amount').eq('date', day),
+      db.from('expenses').select('cat,amount,type').eq('date', day),
       db.from('qr_entries').select('*').eq('date', day).order('datetime'),
       db.from('cash_close').select('counted').eq('date', day).maybeSingle()
     ]);
     need(exRes.error); need(qrRes.error);
 
+    // pengeluaran Bulanan (tagihan rutin) gak dihitung — bukan uang tunai yang keluar dari laci hari ini,
+    // sama kayak logika Rekap Kas Keluar
     const byCat = {};
-    (exRes.data||[]).forEach(e => { const c = e.cat || 'Lain-lain'; byCat[c] = (byCat[c]||0) + (Number(e.amount)||0); });
+    (exRes.data||[]).filter(e => e.type !== 'Bulanan').forEach(e => { const c = e.cat || 'Lain-lain'; byCat[c] = (byCat[c]||0) + (Number(e.amount)||0); });
     const expensesByCat = Object.keys(byCat).map(cat => ({ cat, total: byCat[cat] })).sort((a,b) => b.total - a.total);
     const expensesTotal = expensesByCat.reduce((s,x) => s + x.total, 0);
 
