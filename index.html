@@ -3702,11 +3702,15 @@ function renderPribadi(r){
     : `<table class="rpt-table"><tbody>${r.expensesByCat.map(x=>`<tr><td>${escTxt(x.cat)}</td><td class="num">${rp(x.total)}</td></tr>`).join("")}</tbody></table>`;
   h+=`</div>`;
   h+=`<div class="rpt-sec"><h4>📱 QR Manual</h4>
-    <div style="display:flex;gap:8px;margin-bottom:10px">
-      <input id="pribadiQrAmt" type="text" inputmode="numeric" placeholder="Jumlah (Rp)" style="flex:1;padding:9px;border:1.5px solid var(--line);border-radius:9px" oninput="onRupiahInput(this)">
+    <div style="display:flex;gap:8px;margin-bottom:4px;align-items:flex-start">
+      <div style="flex:1">
+        <input id="pribadiQrAmt" type="text" inputmode="numeric" placeholder="cth: 15 → Rp 15.000" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:9px" oninput="updateQrKPreview(this)">
+        <div style="font-size:11px;color:#6B5D52;margin-top:3px">Ketik dalam ribuan — 15 jadi <b id="pribadiQrPreview">Rp 0</b>, gak usah ketik nolnya</div>
+      </div>
       <input id="pribadiQrNote" placeholder="Catatan (opsional)" style="flex:1;padding:9px;border:1.5px solid var(--line);border-radius:9px">
       <button style="width:auto;margin:0;padding:9px 16px;background:var(--coffee);color:#fff;border-radius:9px;font-weight:600" onclick="addQrEntryUI()">+ Tambah</button>
-    </div>`;
+    </div>
+    <div style="margin-bottom:10px"></div>`;
   h+= !r.qrEntries.length ? `<div style="font-size:12.5px;color:#6B5D52">Belum ada entri QR tanggal ini.</div>`
     : r.qrEntries.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">
         <div><b>${rp(x.amount)}</b>${x.note?` <span style="color:#6B5D52;font-size:12px">· ${escTxt(x.note)}</span>`:''}</div>
@@ -3715,8 +3719,12 @@ function renderPribadi(r){
   h+=`</div>`;
   body.innerHTML=h;
 }
+function updateQrKPreview(el){
+  const prev=document.getElementById("pribadiQrPreview");
+  if(prev)prev.textContent=rp(rpVal("pribadiQrAmt")*1000);
+}
 async function addQrEntryUI(){
-  const amount=rpVal("pribadiQrAmt");
+  const amount=rpVal("pribadiQrAmt")*1000;
   if(!(amount>0)){toast("Isi jumlah QR dulu");return;}
   const note=document.getElementById("pribadiQrNote").value.trim();
   try{
