@@ -3683,7 +3683,7 @@ async function loadPribadi(){
   try{
     const r=await run("getPersonalRecap",state.token,pribadiDate);
     renderPribadi(r);
-  }catch(e){body.innerHTML='<div style="color:var(--void)">Gagal memuat.</div>';}
+  }catch(e){body.innerHTML='<div style="color:var(--void)">⚠️ Gagal memuat: '+escTxt((e&&e.message)||e)+'<br><button style="width:auto;margin-top:10px;padding:8px 14px;background:var(--coffee);color:#fff;border-radius:9px" onclick="loadPribadi()">Coba Lagi</button></div>';}
 }
 function renderPribadi(r){
   const body=document.getElementById("pribadiBody");
