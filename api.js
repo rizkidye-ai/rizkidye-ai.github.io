@@ -108,7 +108,10 @@ async function getShop(){
            footer:String(s['struk_footer'] || 'Terima Kasih! 🙏'),
            cutoff: CUTOFF,
            logo:  String(s['shop_logo'] || ''),
-           customExpenseCats: customExpenseCats };
+           customExpenseCats: customExpenseCats,
+           costEs:   Number(s['cost_es'])   || 500,
+           costAir:  Number(s['cost_air'])  || 200,
+           costSusu: Number(s['cost_susu']) || 1000 };
 }
 
 
@@ -240,7 +243,8 @@ const API = {
     const s = {}; (sRes.data||[]).forEach(r => s[r.key] = r.value);
     CUTOFF = Number(s['biz_cutoff']) || 7;
     const shop = { name:String(s['cafe']||'3 Rakan Kupi'), addr:String(s['alamat']||''),
-      footer:String(s['struk_footer']||'Terima Kasih! 🙏'), cutoff:CUTOFF, logo:String(s['shop_logo']||'') };
+      footer:String(s['struk_footer']||'Terima Kasih! 🙏'), cutoff:CUTOFF, logo:String(s['shop_logo']||''),
+      costEs: Number(s['cost_es'])||500, costAir: Number(s['cost_air'])||200, costSusu: Number(s['cost_susu'])||1000 };
 
     const byId = {}; (pRes.data||[]).forEach(p => byId[String(p.id)] = p);
     const products = (pRes.data||[]).map(p => mapProduct(p, byId))
@@ -957,7 +961,10 @@ const API = {
       { key:'cafe', value: String(payload.name||'').trim() || '3 Rakan Kupi' },
       { key:'alamat', value: String(payload.addr||'').trim() },
       { key:'struk_footer', value: String(payload.footer||'').trim() || 'Terima Kasih! 🙏' },
-      { key:'biz_cutoff', value: String(c) }
+      { key:'biz_cutoff', value: String(c) },
+      { key:'cost_es', value: String(Number(payload.costEs)||0) },
+      { key:'cost_air', value: String(Number(payload.costAir)||0) },
+      { key:'cost_susu', value: String(Number(payload.costSusu)||0) }
     ];
     if (payload.logo !== undefined) {
       const lg = String(payload.logo||'');

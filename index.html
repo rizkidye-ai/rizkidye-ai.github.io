@@ -1005,6 +1005,14 @@
       <div class="field"><label>Ucapan di bawah struk</label><input id="shFooter" placeholder="cth: Terima Kasih! 🙏"></div>
       <div class="field"><label>Jam ganti hari usaha (0–12)</label><input id="shCutoff" type="number" min="0" max="12">
         <div style="font-size:11.5px;color:#6B5D52;margin-top:4px">Transaksi sebelum jam ini dihitung masuk hari sebelumnya. Contoh: tutup jam 6 pagi → isi 7.</div></div>
+      <div class="field"><label>Perkiraan Biaya Es/Air/Susu per gelas</label>
+        <div style="font-size:11.5px;color:#6B5D52;margin-bottom:6px">Buat bantu ngitung Harga Modal produk di menu Produk (kalkulator: sachet + es + air + susu). Angka kasar aja, gak perlu presisi.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div class="ff"><label style="font-size:11px">🧊 Es (Rp)</label><input id="shCostEs" type="text" inputmode="numeric" style="padding:9px;border:1.5px solid var(--line);border-radius:9px;width:100%" oninput="onRupiahInput(this)"></div>
+          <div class="ff"><label style="font-size:11px">💧 Air (Rp)</label><input id="shCostAir" type="text" inputmode="numeric" style="padding:9px;border:1.5px solid var(--line);border-radius:9px;width:100%" oninput="onRupiahInput(this)"></div>
+          <div class="ff"><label style="font-size:11px">🥛 Susu (Rp)</label><input id="shCostSusu" type="text" inputmode="numeric" style="padding:9px;border:1.5px solid var(--line);border-radius:9px;width:100%" oninput="onRupiahInput(this)"></div>
+        </div>
+      </div>
       <div class="actions"><button class="btn btn-pay" onclick="saveShopC()">💾 Simpan Pengaturan</button></div>
     </div>
   </div>
@@ -2192,11 +2200,28 @@ function showProdForm(id){
   window._prodScroll=_sb?_sb.scrollTop:0;
   const p=id?prod(id):null;
   const catOpts=CAT_LIST.map(c=>`<option ${p&&p.cat===c?'selected':''}>${c}</option>`).join("");
+  const costEsDefault=(state.shop&&state.shop.costEs)||500;
+  const costAirDefault=(state.shop&&state.shop.costAir)||200;
+  const costSusuDefault=(state.shop&&state.shop.costSusu)||1000;
   document.getElementById("prodForm").innerHTML=`
     <div class="prod-form">
       <div class="ff"><label style="font-size:12.5px;font-weight:600;color:#6B5D52">Nama Produk</label><input id="pfName" value="${p?p.name:''}" placeholder="cth: Kopi Sanger" style="padding:10px;border:1.5px solid var(--line);border-radius:9px"></div>
       <div class="grid2"><div class="ff"><label style="font-size:12.5px;font-weight:600;color:#6B5D52">Kategori</label><select id="pfCat" style="padding:10px;border:1.5px solid var(--line);border-radius:9px">${catOpts}</select></div><div class="ff"><label style="font-size:12.5px;font-weight:600;color:#6B5D52">Harga (Rp)</label><input id="pfPrice" type="text" inputmode="numeric" value="${fmtRibuan(p?p.price:'')}" placeholder="0" style="padding:10px;border:1.5px solid var(--line);border-radius:9px" oninput="onRupiahInput(this)"></div></div>
       <div class="grid2"><div class="ff"><label style="font-size:12.5px;font-weight:600;color:#6B5D52">Harga Modal / Cost (Rp)</label><input id="pfCost" type="text" inputmode="numeric" value="${fmtRibuan(p?(p.cost||0):0)}" placeholder="0" style="padding:10px;border:1.5px solid var(--line);border-radius:9px" oninput="onRupiahInput(this)"></div><div class="ff"><label style="font-size:12.5px;font-weight:600;color:#6B5D52">Stok</label><input id="pfStock" type="number" value="${p?p.stock:0}" style="padding:10px;border:1.5px solid var(--line);border-radius:9px"></div></div>
+      <div class="ff" style="background:var(--panel-3);border:1px solid var(--line);border-radius:9px;padding:10px">
+        <label style="font-size:12px;font-weight:600;color:#6B5D52">🧮 Kalkulator Modal (opsional)</label>
+        <div style="font-size:11px;color:#8A7C70;margin:2px 0 8px">Isi harga sachet, centang yang dipakai, nanti dijumlah otomatis.</div>
+        <input id="pfCalcSachet" type="text" inputmode="numeric" placeholder="Harga sachet (Rp)" style="padding:9px;border:1.5px solid var(--line);border-radius:9px;width:100%;margin-bottom:8px" oninput="onRupiahInput(this);calcProdCost();">
+        <div style="display:flex;flex-wrap:wrap;gap:12px;font-size:12.5px;margin-bottom:8px">
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="pfCalcEs" checked onchange="calcProdCost()"> 🧊 Es (${rp(costEsDefault)})</label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="pfCalcAir" checked onchange="calcProdCost()"> 💧 Air (${rp(costAirDefault)})</label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="pfCalcSusu" onchange="calcProdCost()"> 🥛 Susu (${rp(costSusuDefault)})</label>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <span style="font-size:13px;color:#6B5D52">= Total: <b id="pfCalcTotal" style="color:var(--txt)">Rp 0</b></span>
+          <button type="button" style="width:auto;margin:0;padding:8px 14px;background:var(--coffee);color:#fff;border-radius:9px;font-size:12.5px;font-weight:600" onclick="applyCalcCost()">Pakai ke Harga Modal</button>
+        </div>
+      </div>
       <div class="ff"><label style="font-size:12.5px;font-weight:600;color:#6B5D52">Titipan Mitra (kosongkan jika milik warkop)</label><input id="pfMitra" value="${p?(p.mitra||''):''}" placeholder="cth: Bang Udin (penjual mie)" style="padding:10px;border:1.5px solid var(--line);border-radius:9px"></div>
       <div class="ff"><label style="font-size:12.5px;font-weight:600;color:#6B5D52">Bagian Mitra per pcs (Rp) — sisanya komisi kedai</label><input id="pfMitraCost" type="text" inputmode="numeric" value="${fmtRibuan(p?(p.mitraCost||''):'')}" placeholder="cth: kue 1.000 → isi 800" style="padding:10px;border:1.5px solid var(--line);border-radius:9px" oninput="onRupiahInput(this)"></div>
       <div class="ff"><label style="font-size:12.5px;font-weight:600;color:#6B5D52">Stok ikut produk (untuk varian Es/Panas dari sachet yang sama)</label><select id="pfInduk" style="padding:10px;border:1.5px solid var(--line);border-radius:9px"><option value="">— stok sendiri —</option>${state.products.filter(x=>!x.mitra&&!x.stokInduk&&(!p||String(x.id)!==String(p.id))).map(x=>`<option value="${x.id}" ${p&&p.stokInduk===String(x.id)?'selected':''}>${x.name}</option>`).join("")}</select>${(function(){const ikut=p?state.products.filter(x=>String(x.stokInduk||'')===String(p.id)).map(x=>x.name):[];return ikut.length?`<div style="font-size:11.5px;color:#1A6B2C;margin-top:4px">🔗 Produk ini jadi INDUK stok untuk: <b>${ikut.join(", ")}</b></div>`:(p&&p.stokInduk?`<div style="font-size:11.5px;color:#1856B8;margin-top:4px">↪ Stok produk ini ikut: <b>${p.indukName||p.stokInduk}</b></div>`:"");})()}</div>
@@ -2204,6 +2229,22 @@ function showProdForm(id){
       <div class="pf-actions"><button style="background:var(--success)" onclick="saveProd('${id||''}')">💾 Simpan</button>${id?`<button style="background:var(--alert)" onclick="deleteProd('${id}')">Hapus</button>`:''}<button style="background:#9b9081" onclick="closeProdForm()">Batal</button></div>
     </div>`;
   document.getElementById("prodForm").scrollIntoView({behavior:"smooth",block:"start"});
+  calcProdCost();
+}
+function calcProdCost(){
+  const sachet=rpVal("pfCalcSachet");
+  const es=document.getElementById("pfCalcEs").checked?((state.shop&&state.shop.costEs)||500):0;
+  const air=document.getElementById("pfCalcAir").checked?((state.shop&&state.shop.costAir)||200):0;
+  const susu=document.getElementById("pfCalcSusu").checked?((state.shop&&state.shop.costSusu)||1000):0;
+  document.getElementById("pfCalcTotal").textContent=rp(sachet+es+air+susu);
+}
+function applyCalcCost(){
+  const sachet=rpVal("pfCalcSachet");
+  const es=document.getElementById("pfCalcEs").checked?((state.shop&&state.shop.costEs)||500):0;
+  const air=document.getElementById("pfCalcAir").checked?((state.shop&&state.shop.costAir)||200):0;
+  const susu=document.getElementById("pfCalcSusu").checked?((state.shop&&state.shop.costSusu)||1000):0;
+  document.getElementById("pfCost").value=fmtRibuan(sachet+es+air+susu);
+  toast("💰 Harga Modal diisi dari kalkulator");
 }
 async function saveProd(id){
   const name=document.getElementById("pfName").value.trim();if(!name){toast("Nama produk wajib diisi");return;}
@@ -3415,12 +3456,15 @@ function openShop(){
   document.getElementById("shAddr").value=(state.shop&&state.shop.addr)||"";
   document.getElementById("shFooter").value=(state.shop&&state.shop.footer)||"";
   document.getElementById("shCutoff").value=(state.shop&&state.shop.cutoff)||7;
+  document.getElementById("shCostEs").value=fmtRibuan((state.shop&&state.shop.costEs)||500);
+  document.getElementById("shCostAir").value=fmtRibuan((state.shop&&state.shop.costAir)||200);
+  document.getElementById("shCostSusu").value=fmtRibuan((state.shop&&state.shop.costSusu)||1000);
   shLogo=shopLogo();renderShLogo();
   document.getElementById("shopOverlay").classList.remove("hidden");
 }
 async function saveShopC(){
   try{
-    state.shop=await run("saveShop",state.token,{name:document.getElementById("shName").value,addr:document.getElementById("shAddr").value,footer:document.getElementById("shFooter").value,cutoff:parseFloat(document.getElementById("shCutoff").value),logo:shLogo});
+    state.shop=await run("saveShop",state.token,{name:document.getElementById("shName").value,addr:document.getElementById("shAddr").value,footer:document.getElementById("shFooter").value,cutoff:parseFloat(document.getElementById("shCutoff").value),costEs:rpVal("shCostEs"),costAir:rpVal("shCostAir"),costSusu:rpVal("shCostSusu"),logo:shLogo});
     applyShopBranding();closeOverlay("shopOverlay");toast("🏪 Pengaturan toko tersimpan");
   }catch(e){}
 }
