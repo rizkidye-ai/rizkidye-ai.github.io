@@ -2092,6 +2092,8 @@ async function splitPay(){
         splitSel={};splitExtra={};
         document.getElementById("splitCash").value="";
         const mc=document.getElementById("splitMixCash");if(mc)mc.value="";
+        setSplitPayMethod("Tunai"); // metode bayar direset ke Tunai — kalau gak, kalau orang sebelumnya bayar QRIS,
+        // pembayar berikutnya ikut kecatat QRIS kalau kasir lupa ganti manual (sering salah input)
         renderSplit();
         toast("✅ Lunas "+r.no+" · lanjut bayar berikutnya ("+r.remaining+" item sisa)");
       }else{
