@@ -1153,9 +1153,10 @@
         <button class="rpt-p" onclick="shiftPribadiDay(1)">▶</button>
         <button class="rpt-p" onclick="jumpPribadiToday()">Hari Ini</button>
       </div>
-      <div class="rpt-actions" style="margin-bottom:12px">
+      <div class="rpt-actions" style="margin-bottom:12px;flex-wrap:wrap">
         <button class="rpt-exp pdf" onclick="printPribadi()">🖨️ Cetak</button>
         <button class="rpt-exp" style="background:var(--navy)" onclick="downloadPribadiPDF()">⬇️ Download PDF</button>
+        <button class="rpt-exp" style="background:var(--forest)" onclick="downloadPribadiImage()">🖼️ Simpan Gambar</button>
       </div>
       <div id="pribadiBody">Memuat...</div>
     </div>
@@ -1200,6 +1201,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="api.js"></script>
 <script>
 /* ============ 3 RAKAN KUPI — CLIENT (Apps Script web app) ============ */
@@ -3750,10 +3752,7 @@ async function deleteQrEntryUI(id){
     renderPribadi(r);
   }catch(e){}
 }
-function printPribadi(){
-  if(!pribadiData){toast("Belum ada data");return;}
-  const r=pribadiData;
-  const css=`body{font-family:Arial,sans-serif;color:#222;padding:24px}h1{font-size:18px;margin:0}h2{font-size:13px;color:#666;margin:2px 0 16px;font-weight:normal}h3{font-size:13px;margin:16px 0 6px}table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}td.num,th.num{text-align:right}.sub{color:#777;font-size:11px}.sum{display:flex;justify-content:space-between;padding:8px 12px;border-radius:8px;margin-bottom:6px;font-weight:bold}`;
+function pribadiHtmlBody(r){
   let b=`<h1>🔒 Rekap Pribadi — ${typeof shopName==="function"?shopName():"3 Rakan Kupi"}</h1><h2>Tanggal: ${idDate(new Date(r.date+"T00:00:00"))}</h2>`;
   b+=`<div class="sum" style="background:#eef6ef">Pemasukan<span>${rp(r.pemasukan)}</span></div>`;
   b+=`<div class="sum" style="background:#eef2fa">Sisa<span>${rp(r.sisa)}</span></div>`;
@@ -3765,9 +3764,35 @@ function printPribadi(){
   b+=`<h3>QR Manual</h3>`;
   b+= !r.qrEntries.length ? `<p class="sub">Belum ada entri QR.</p>`
     : `<table><tr><th>Catatan</th><th class="num">Jumlah</th></tr>`+r.qrEntries.map(x=>`<tr><td>${escTxt(x.note)||'—'}</td><td class="num">${rp(x.amount)}</td></tr>`).join("")+`</table>`;
-  const doc=`<html><head><meta charset="utf-8"><title>Rekap Pribadi ${r.date}</title><style>${css}</style></head><body>${b}<script>window.onload=function(){setTimeout(function(){window.print();},300);}<\/script></body></html>`;
+  return b;
+}
+function printPribadi(){
+  if(!pribadiData){toast("Belum ada data");return;}
+  const r=pribadiData;
+  const css=`body{font-family:Arial,sans-serif;color:#222;padding:24px}h1{font-size:18px;margin:0}h2{font-size:13px;color:#666;margin:2px 0 16px;font-weight:normal}h3{font-size:13px;margin:16px 0 6px}table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}td.num,th.num{text-align:right}.sub{color:#777;font-size:11px}.sum{display:flex;justify-content:space-between;padding:8px 12px;border-radius:8px;margin-bottom:6px;font-weight:bold}`;
+  const doc=`<html><head><meta charset="utf-8"><title>Rekap Pribadi ${r.date}</title><style>${css}</style></head><body>${pribadiHtmlBody(r)}<script>window.onload=function(){setTimeout(function(){window.print();},300);}<\/script></body></html>`;
   const w=window.open("","_blank","width=820,height=900");if(!w){toast("Popup diblokir — izinkan popup untuk cetak/PDF");return;}
   w.document.open();w.document.write(doc);w.document.close();
+}
+function downloadPribadiImage(){
+  if(!pribadiData){toast("Belum ada data");return;}
+  if(!window.html2canvas){toast("Library gambar belum siap, coba lagi sebentar");return;}
+  const r=pribadiData;
+  const wrap=document.createElement("div");
+  wrap.style.cssText="position:fixed;left:-9999px;top:0;width:560px;background:#fff;font-family:Arial,sans-serif;color:#222;padding:24px;box-sizing:border-box;";
+  wrap.innerHTML=`<style>h1{font-size:18px;margin:0}h2{font-size:13px;color:#666;margin:2px 0 16px;font-weight:normal}h3{font-size:13px;margin:16px 0 6px}table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}td.num,th.num{text-align:right}.sub{color:#777;font-size:11px}.sum{display:flex;justify-content:space-between;padding:8px 12px;border-radius:8px;margin-bottom:6px;font-weight:bold}</style>`+pribadiHtmlBody(r);
+  document.body.appendChild(wrap);
+  html2canvas(wrap,{backgroundColor:"#fff",scale:2}).then(canvas=>{
+    const link=document.createElement("a");
+    link.download="RekapPribadi_"+r.date+".png";
+    link.href=canvas.toDataURL("image/png");
+    link.click();
+    document.body.removeChild(wrap);
+    toast("🖼️ Gambar diunduh");
+  }).catch(e=>{
+    document.body.removeChild(wrap);
+    toast("Gagal buat gambar: "+e.message);
+  });
 }
 function downloadPribadiPDF(){
   if(!pribadiData){toast("Belum ada data");return;}
