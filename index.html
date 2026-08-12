@@ -1153,6 +1153,10 @@
         <button class="rpt-p" onclick="shiftPribadiDay(1)">▶</button>
         <button class="rpt-p" onclick="jumpPribadiToday()">Hari Ini</button>
       </div>
+      <div class="rpt-actions" style="margin-bottom:12px">
+        <button class="rpt-exp pdf" onclick="printPribadi()">🖨️ Cetak</button>
+        <button class="rpt-exp" style="background:var(--navy)" onclick="downloadPribadiPDF()">⬇️ Download PDF</button>
+      </div>
       <div id="pribadiBody">Memuat...</div>
     </div>
   </div>
@@ -3659,7 +3663,7 @@ function renderAnalisa(){
 }
 /* ---------- EVALUASI BULANAN ---------- */
 let evMode="bulan";
-let pribadiDate=null;
+let pribadiDate=null,pribadiData=null;
 function openPribadi(){
   if(!isAdmin()){toast("Khusus Admin/Owner");return;}
   pribadiDate=ymd(bizNow());
@@ -3686,6 +3690,7 @@ async function loadPribadi(){
   }catch(e){body.innerHTML='<div style="color:var(--void)">⚠️ Gagal memuat: '+escTxt((e&&e.message)||e)+'<br><button style="width:auto;margin-top:10px;padding:8px 14px;background:var(--coffee);color:#fff;border-radius:9px" onclick="loadPribadi()">Coba Lagi</button></div>';}
 }
 function renderPribadi(r){
+  pribadiData=r;
   const body=document.getElementById("pribadiBody");
   let h=`<div class="rpt-cards" style="grid-template-columns:repeat(3,1fr)">
     <div class="rpt-card"><div class="v">${rp(r.qrTotal)}</div><div class="l">Total QR</div></div>
@@ -3744,6 +3749,59 @@ async function deleteQrEntryUI(id){
     const r=await run("deleteQrEntry",state.token,id,pribadiDate);
     renderPribadi(r);
   }catch(e){}
+}
+function printPribadi(){
+  if(!pribadiData){toast("Belum ada data");return;}
+  const r=pribadiData;
+  const css=`body{font-family:Arial,sans-serif;color:#222;padding:24px}h1{font-size:18px;margin:0}h2{font-size:13px;color:#666;margin:2px 0 16px;font-weight:normal}h3{font-size:13px;margin:16px 0 6px}table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}td.num,th.num{text-align:right}.sub{color:#777;font-size:11px}.sum{display:flex;justify-content:space-between;padding:8px 12px;border-radius:8px;margin-bottom:6px;font-weight:bold}`;
+  let b=`<h1>🔒 Rekap Pribadi — ${typeof shopName==="function"?shopName():"3 Rakan Kupi"}</h1><h2>Tanggal: ${idDate(new Date(r.date+"T00:00:00"))}</h2>`;
+  b+=`<div class="sum" style="background:#eef6ef">Pemasukan<span>${rp(r.pemasukan)}</span></div>`;
+  b+=`<div class="sum" style="background:#eef2fa">Sisa<span>${rp(r.sisa)}</span></div>`;
+  b+=`<table><tr><td>Total QR</td><td class="num">${rp(r.qrTotal)}</td></tr><tr><td>Uang Laci</td><td class="num">${r.laciDone?rp(r.laci):'— (belum Tutup Kas)'}</td></tr><tr><td>Total Pengeluaran</td><td class="num">${rp(r.expensesTotal)}</td></tr></table>`;
+  b+=`<h3>Pengeluaran per Kategori</h3>`;
+  b+= !r.expensesByCat.length ? `<p class="sub">Belum ada pengeluaran.</p>`
+    : `<table><tr><th>Kategori / Keterangan</th><th class="num">Jumlah</th></tr>`+r.expensesByCat.map(c=>`<tr style="font-weight:bold;background:#f7f4ee"><td>${escTxt(c.cat)}</td><td class="num">${rp(c.total)}</td></tr>`
+      +c.items.map(it=>`<tr><td style="padding-left:20px;color:#555">${escTxt(it.name)}${it.note?' · '+escTxt(it.note):''}</td><td class="num">${rp(it.amount)}</td></tr>`).join("")).join("")+`</table>`;
+  b+=`<h3>QR Manual</h3>`;
+  b+= !r.qrEntries.length ? `<p class="sub">Belum ada entri QR.</p>`
+    : `<table><tr><th>Catatan</th><th class="num">Jumlah</th></tr>`+r.qrEntries.map(x=>`<tr><td>${escTxt(x.note)||'—'}</td><td class="num">${rp(x.amount)}</td></tr>`).join("")+`</table>`;
+  const doc=`<html><head><meta charset="utf-8"><title>Rekap Pribadi ${r.date}</title><style>${css}</style></head><body>${b}<script>window.onload=function(){setTimeout(function(){window.print();},300);}<\/script></body></html>`;
+  const w=window.open("","_blank","width=820,height=900");if(!w){toast("Popup diblokir — izinkan popup untuk cetak/PDF");return;}
+  w.document.open();w.document.write(doc);w.document.close();
+}
+function downloadPribadiPDF(){
+  if(!pribadiData){toast("Belum ada data");return;}
+  if(!(window.jspdf&&window.jspdf.jsPDF)){toast("Library PDF belum siap, coba lagi sebentar");return;}
+  const r=pribadiData;
+  const { jsPDF }=window.jspdf;
+  const doc=new jsPDF({unit:"pt",format:"a4"});
+  let y=46;
+  doc.setFont("helvetica","bold");doc.setFontSize(17);doc.setTextColor(43,30,21);
+  doc.text((typeof shopName==="function"?shopName():"3 Rakan Kupi"),40,y);y+=18;
+  doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(120);
+  doc.text("Rekap Pribadi · Tanggal: "+idDate(new Date(r.date+"T00:00:00")),40,y);y+=22;
+
+  y=pdfSection(doc,y,null,["Ringkasan",""],[
+    ["Total QR",rp(r.qrTotal)],
+    ["Uang Laci",r.laciDone?rp(r.laci):"— (belum Tutup Kas)"],
+    ["Total Pengeluaran",rp(r.expensesTotal)],
+    ["PEMASUKAN",rp(r.pemasukan)],
+    ["SISA",rp(r.sisa)]
+  ],{columnStyles:{1:{halign:"right"}}});
+
+  const expRows=[];
+  r.expensesByCat.forEach(c=>{
+    expRows.push([c.cat, rp(c.total)]);
+    c.items.forEach(it=>expRows.push(["   "+it.name+(it.note?" · "+it.note:""), rp(it.amount)]));
+  });
+  if(expRows.length) y=pdfSection(doc,y,"Pengeluaran per Kategori",["Kategori / Keterangan","Jumlah"],expRows,{columnStyles:{1:{halign:"right"}}});
+
+  if(r.qrEntries.length){
+    y=pdfSection(doc,y,"QR Manual",["Catatan","Jumlah"],r.qrEntries.map(x=>[x.note||"—",rp(x.amount)]),{columnStyles:{1:{halign:"right"}}});
+  }
+
+  doc.save("RekapPribadi_"+r.date+".pdf");
+  toast("⬇️ PDF diunduh");
 }
 function openEval(){
   if(!isOwner()){toast("Khusus Owner");return;}
