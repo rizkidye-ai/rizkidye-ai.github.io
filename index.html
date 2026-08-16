@@ -2550,15 +2550,27 @@ async function saveExpense(){
   if(!cat){toast("Pilih atau tambah kategorinya dulu");return;}
   if(!name){toast("Isi keterangan dulu");return;}
 
-  if(document.getElementById("exSplitToggle").checked&&!exEditId){
+  if(document.getElementById("exSplitToggle").checked){
     const w=rpVal("exAmountWarkop"),o=rpVal("exAmountOwner");
     if(!(w>0)&&!(o>0)){toast("Isi jumlah dari Warkop atau Owner dulu");return;}
     const total=w+o,noteTag=(note?note+" · ":"")+"kesplit dari total "+rp(total);
+    const wasEdit=!!exEditId;
     try{
-      if(w>0)await run("addExpense",state.token,{cat,date,name,amount:w,note:noteTag+" (bagian Warkop)",type,sumber:"Warkop"});
-      if(o>0)await run("addExpense",state.token,{cat,date,name,amount:o,note:noteTag+" (bagian Owner)",type,sumber:"Owner"});
+      if(exEditId){
+        // ngedit 1 baris jadi kesplit: baris asli dipakai buat bagian pertama yang keisi, baris kedua ditambah baru
+        if(w>0){
+          await run("updateExpense",state.token,exEditId,{cat,date,name,amount:w,note:noteTag+" (bagian Warkop)",type,sumber:"Warkop"});
+          if(o>0)await run("addExpense",state.token,{cat,date,name,amount:o,note:noteTag+" (bagian Owner)",type,sumber:"Owner"});
+        }else{
+          await run("updateExpense",state.token,exEditId,{cat,date,name,amount:o,note:noteTag+" (bagian Owner)",type,sumber:"Owner"});
+        }
+      }else{
+        if(w>0)await run("addExpense",state.token,{cat,date,name,amount:w,note:noteTag+" (bagian Warkop)",type,sumber:"Warkop"});
+        if(o>0)await run("addExpense",state.token,{cat,date,name,amount:o,note:noteTag+" (bagian Owner)",type,sumber:"Owner"});
+      }
       resetExpenseForm();await loadExpenses();
-      toast("Pengeluaran kesplit tersimpan ("+((w>0&&o>0)?"2":"1")+" baris)");
+      if(wasEdit)restoreExpenseScroll();
+      toast("Pengeluaran kesplit tersimpan"+((w>0&&o>0)?" (2 baris)":""));
     }catch(e){}
     return;
   }
@@ -2577,7 +2589,6 @@ async function saveExpense(){
 function editExpense(id){
   const e=exData.find(x=>x.id===id);if(!e)return;exEditId=id;
   document.getElementById("exSplitToggle").checked=false;toggleExpSplit();
-  document.getElementById("exSplitLabel").classList.add("hidden");
   populateExpCatOptions(e.cat);
   document.getElementById("exCatNewRow").classList.add("hidden");
   document.getElementById("exCatManage").classList.add("hidden");
