@@ -196,6 +196,18 @@ async function insertSale(row, prefix){
   return no;
 }
 
+/* kelompokkan baris pengeluaran per kategori, dengan rincian tiap item (nama+jumlah) */
+function groupExpensesByCat(rows){
+  const byCat = {};
+  rows.forEach(e => {
+    const c = e.cat || 'Lain-lain';
+    if (!byCat[c]) byCat[c] = { cat: c, total: 0, items: [] };
+    byCat[c].total += Number(e.amount)||0;
+    byCat[c].items.push({ name: e.name||'', note: e.note||'', amount: Number(e.amount)||0 });
+  });
+  return Object.values(byCat).sort((a,b) => b.total - a.total);
+}
+
 /* ---------- API (nama fungsi SAMA seperti Code.gs) ---------- */
 const API = {
 
@@ -542,23 +554,23 @@ const API = {
     const day = date || bizYmd(new Date());
 
     const [exRes, qrRes, ccRes] = await Promise.all([
-      db.from('expenses').select('cat,name,note,amount,type').eq('date', day),
+      db.from('expenses').select('cat,name,note,amount,type,sumber').eq('date', day),
       db.from('qr_entries').select('*').eq('date', day).order('datetime'),
       db.from('cash_close').select('counted').eq('date', day).maybeSingle()
     ]);
     need(exRes.error); need(qrRes.error);
 
     // pengeluaran Bulanan (tagihan rutin) gak dihitung — bukan uang tunai yang keluar dari laci hari ini,
-    // sama kayak logika Rekap Kas Keluar. Per kategori, tampilkan rincian keterangan tiap item — bukan cuma total.
-    const byCat = {};
-    (exRes.data||[]).filter(e => e.type !== 'Bulanan').forEach(e => {
-      const c = e.cat || 'Lain-lain';
-      if (!byCat[c]) byCat[c] = { cat: c, total: 0, items: [] };
-      byCat[c].total += Number(e.amount)||0;
-      byCat[c].items.push({ name: e.name||'', note: e.note||'', amount: Number(e.amount)||0 });
-    });
-    const expensesByCat = Object.values(byCat).sort((a,b) => b.total - a.total);
+    // sama kayak logika Rekap Kas Keluar. Pengeluaran dari uang Owner pribadi juga dipisah — gak ngurangin
+    // Uang Laci warkop karena memang bukan keluar dari situ, tapi tetap dicatat & ditampilkan terpisah.
+    const eligible = (exRes.data||[]).filter(e => e.type !== 'Bulanan');
+    const warkopRows = eligible.filter(e => e.sumber !== 'Owner');
+    const ownerRows = eligible.filter(e => e.sumber === 'Owner');
+
+    const expensesByCat = groupExpensesByCat(warkopRows);
     const expensesTotal = expensesByCat.reduce((s,x) => s + x.total, 0);
+    const ownerExpensesByCat = groupExpensesByCat(ownerRows);
+    const ownerExpensesTotal = ownerExpensesByCat.reduce((s,x) => s + x.total, 0);
 
     const qrEntries = (qrRes.data||[]).map(r => ({ id:r.id, amount:Number(r.amount)||0, note:r.note||'',
       datetime: r.datetime ? new Date(r.datetime).getTime() : null }));
@@ -570,7 +582,8 @@ const API = {
     const pemasukan = qrTotal + laci + expensesTotal;
     const sisa = pemasukan - expensesTotal;
 
-    return { date: day, expensesByCat, expensesTotal, qrEntries, qrTotal, laci, laciDone, pemasukan, sisa };
+    return { date: day, expensesByCat, expensesTotal, ownerExpensesByCat, ownerExpensesTotal,
+      qrEntries, qrTotal, laci, laciDone, pemasukan, sisa };
   },
 
   async getPersonalRecapRange(token, fromYmd, toYmd){
@@ -578,21 +591,20 @@ const API = {
     if (!isAdminRole(u.role)) throw new Error('Akses ditolak — khusus Admin/Owner.');
 
     const [exRes, qrRes, ccRes] = await Promise.all([
-      db.from('expenses').select('cat,name,note,amount,type').gte('date', fromYmd).lte('date', toYmd),
+      db.from('expenses').select('cat,name,note,amount,type,sumber').gte('date', fromYmd).lte('date', toYmd),
       db.from('qr_entries').select('*').gte('date', fromYmd).lte('date', toYmd).order('datetime'),
       db.from('cash_close').select('date,counted').gte('date', fromYmd).lte('date', toYmd)
     ]);
     need(exRes.error); need(qrRes.error); need(ccRes.error);
 
-    const byCat = {};
-    (exRes.data||[]).filter(e => e.type !== 'Bulanan').forEach(e => {
-      const c = e.cat || 'Lain-lain';
-      if (!byCat[c]) byCat[c] = { cat: c, total: 0, items: [] };
-      byCat[c].total += Number(e.amount)||0;
-      byCat[c].items.push({ name: e.name||'', note: e.note||'', amount: Number(e.amount)||0 });
-    });
-    const expensesByCat = Object.values(byCat).sort((a,b) => b.total - a.total);
+    const eligible = (exRes.data||[]).filter(e => e.type !== 'Bulanan');
+    const warkopRows = eligible.filter(e => e.sumber !== 'Owner');
+    const ownerRows = eligible.filter(e => e.sumber === 'Owner');
+
+    const expensesByCat = groupExpensesByCat(warkopRows);
     const expensesTotal = expensesByCat.reduce((s,x) => s + x.total, 0);
+    const ownerExpensesByCat = groupExpensesByCat(ownerRows);
+    const ownerExpensesTotal = ownerExpensesByCat.reduce((s,x) => s + x.total, 0);
 
     const qrEntries = (qrRes.data||[]).map(r => ({ id:r.id, amount:Number(r.amount)||0, note:r.note||'',
       datetime: r.datetime ? new Date(r.datetime).getTime() : null }));
@@ -605,8 +617,8 @@ const API = {
     const pemasukan = qrTotal + laci + expensesTotal;
     const sisa = pemasukan - expensesTotal;
 
-    return { from: fromYmd, to: toYmd, isRange: true, expensesByCat, expensesTotal, qrEntries, qrTotal,
-      laci, laciDays, laciDone: laciDays > 0, pemasukan, sisa };
+    return { from: fromYmd, to: toYmd, isRange: true, expensesByCat, expensesTotal, ownerExpensesByCat, ownerExpensesTotal,
+      qrEntries, qrTotal, laci, laciDays, laciDone: laciDays > 0, pemasukan, sisa };
   },
 
   async addQrEntry(token, payload){
@@ -910,7 +922,8 @@ const API = {
     return (data||[]).filter(e => e.date).map(e => ({
       id:e.id||'', date:new Date(e.date).getTime(), cat:e.cat||'Lain-lain', name:e.name||'',
       amount:Number(e.amount)||0, note:e.note||'', by:e.by_user||'',
-      type:(e.type==='Bulanan'?'Bulanan':'Harian'), untuk:String(e.untuk||'')
+      type:(e.type==='Bulanan'?'Bulanan':'Harian'), untuk:String(e.untuk||''),
+      sumber:(e.sumber==='Owner'?'Owner':'Warkop')
     })).sort((a,b)=> b.date-a.date);
   },
 
@@ -923,7 +936,8 @@ const API = {
     const day = payload.date || bizYmd(new Date());
     need(( await db.from('expenses').insert([{ id:'E'+Date.now()+Math.floor(Math.random()*1000), date:day,
       cat:payload.cat||'Lain-lain', name:payload.name, amount:amount, note:payload.note||'', by_user:u.name,
-      type:(payload.type==='Bulanan'?'Bulanan':'Harian'), untuk:String(payload.untuk||'') }]) ).error);
+      type:(payload.type==='Bulanan'?'Bulanan':'Harian'), untuk:String(payload.untuk||''),
+      sumber:(payload.sumber==='Owner'?'Owner':'Warkop') }]) ).error);
     return { ok:true };
   },
 
@@ -934,7 +948,7 @@ const API = {
     if (!payload.name) throw new Error('Keterangan wajib diisi.');
     if (!(amount > 0)) throw new Error('Jumlah harus lebih dari 0.');
     const upd = { cat:payload.cat||'Lain-lain', name:payload.name, amount:amount, note:payload.note||'',
-      type:(payload.type==='Bulanan'?'Bulanan':'Harian') };
+      type:(payload.type==='Bulanan'?'Bulanan':'Harian'), sumber:(payload.sumber==='Owner'?'Owner':'Warkop') };
     if (payload.date) upd.date = payload.date;
     if (payload.untuk !== undefined) upd.untuk = String(payload.untuk||'');
     need(( await db.from('expenses').update(upd).eq('id', String(id)) ).error);

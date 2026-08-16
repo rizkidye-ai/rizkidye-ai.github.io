@@ -744,7 +744,10 @@
           </div>
           <div class="ff"><label>Tanggal</label><input id="exDate" type="date"></div>
         </div>
-        <div class="ff"><label>Jenis Pengeluaran</label><select id="exType"><option>Harian</option><option>Bulanan</option></select></div>
+        <div class="grid2">
+          <div class="ff"><label>Jenis Pengeluaran</label><select id="exType"><option>Harian</option><option>Bulanan</option></select></div>
+          <div class="ff"><label>Sumber Dana</label><select id="exSumber"><option>Warkop</option><option>Owner</option></select></div>
+        </div>
         <div class="ff"><label>Keterangan</label><input id="exName" placeholder="cth: Beli sedotan, Beli es batu, Bayar listrik"></div>
         <div class="grid2">
           <div class="ff"><label>Jumlah (Rp)</label><input id="exAmount" type="text" inputmode="numeric" placeholder="0" oninput="onRupiahInput(this)"></div>
@@ -2394,7 +2397,7 @@ async function saveCapitalC(){
 
 /* ---------- PENGELUARAN ---------- */
 let exFrom=null,exTo=null,exEditId=null,exData=[],exScrollBeforeEdit=null;
-const EXP_COLORS={"Belanja Stok":"#e8590c","Operasional":"#3b6fd6","Gaji Karyawan":"#7048e8","Uang Makan Karyawan":"#ae3ec9","Galon Air":"#1098ad","Gas":"#f08c00","Sewa Tempat":"#2f9e44","Listrik & Air":"#d6336c","Tabungan Gas":"#fd7e14","Tabungan Listrik":"#fab005","Tabungan":"#0ca678","Lain-lain":"#868e96"};
+const EXP_COLORS={"Belanja Stok":"#e8590c","Operasional":"#3b6fd6","Gaji Karyawan":"#7048e8","Uang Makan Karyawan":"#ae3ec9","Galon Air":"#1098ad","Gas":"#c2410c","Es":"#1864ab","Sewa Tempat":"#2f9e44","Listrik & Air":"#d6336c","Tabungan Gas":"#fd7e14","Tabungan Listrik":"#fab005","Tabungan":"#0ca678","Lain-lain":"#868e96"};
 function openExpense(){if(!isAdmin()){toast("Akses Pengeluaran khusus Admin/Owner");return;}resetExpenseForm();document.getElementById("exDate").value=bizYmd(new Date());setExpPreset("bulan");document.getElementById("expenseOverlay").classList.remove("hidden");}
 function setExpPreset(p){
   const now=bizNow();["hari","bulan","custom"].forEach(x=>document.getElementById("ex-"+x).classList.toggle("on",x===p));
@@ -2433,7 +2436,7 @@ function renderExpenses(){
   if(!list.length){box.innerHTML='<div style="text-align:center;color:#6B5D52;padding:24px">'+(q?"Tidak ada pengeluaran yang cocok.":"Belum ada pengeluaran di periode ini.")+'</div>';return;}
   const rowH=e=>`
     <div class="inv-row">
-      <div class="ir-name"><b>${e.name}</b> <span class="role-badge" style="background:${EXP_COLORS[e.cat]||'#999'};color:#fff">${e.cat}</span><div class="ir-cat">${idDate(e.date)}${e.note?' · '+e.note:''} · oleh ${e.by}</div></div>
+      <div class="ir-name"><b>${e.name}</b> <span class="role-badge" style="background:${EXP_COLORS[e.cat]||'#999'};color:#fff">${e.cat}</span>${e.sumber==='Owner'?' <span class="role-badge" style="background:var(--navy);color:#fff">👤 Owner</span>':''}<div class="ir-cat">${idDate(e.date)}${e.note?' · '+e.note:''} · oleh ${e.by}</div></div>
       <div class="pr-price" style="color:#A02020">${rp(e.amount)}</div>
       <button class="pr-row-btn" onclick="editExpense('${e.id}')">Edit</button>
       <button class="pr-row-btn" style="color:var(--alert);border-color:#f4c2c2" onclick="deleteExpenseC('${e.id}')">Hapus</button>
@@ -2509,8 +2512,9 @@ function readExpForm(){
   const cat=document.getElementById("exCat").value;
   return{cat:cat==="__new__"?"":cat,date:document.getElementById("exDate").value,
   name:document.getElementById("exName").value.trim(),amount:rpVal("exAmount"),
-  note:document.getElementById("exNote").value.trim(),type:document.getElementById("exType").value};}
-function resetExpenseForm(){exEditId=null;document.getElementById("exName").value="";document.getElementById("exAmount").value="";document.getElementById("exNote").value="";document.getElementById("exDate").value=bizYmd(new Date());document.getElementById("exType").value="Harian";
+  note:document.getElementById("exNote").value.trim(),type:document.getElementById("exType").value,
+  sumber:document.getElementById("exSumber").value};}
+function resetExpenseForm(){exEditId=null;document.getElementById("exName").value="";document.getElementById("exAmount").value="";document.getElementById("exNote").value="";document.getElementById("exDate").value=bizYmd(new Date());document.getElementById("exType").value="Harian";document.getElementById("exSumber").value="Warkop";
   const keep=document.getElementById("exCat").value==="__new__"?"Belanja Stok":undefined;
   populateExpCatOptions(keep);
   document.getElementById("exCatNewRow").classList.add("hidden");
@@ -2537,7 +2541,7 @@ function editExpense(id){
   document.getElementById("exCatNewRow").classList.add("hidden");
   document.getElementById("exCatManage").classList.add("hidden");
   document.getElementById("exDate").value=ymd(e.date);
-  document.getElementById("exName").value=e.name;document.getElementById("exAmount").value=fmtRibuan(e.amount);document.getElementById("exNote").value=e.note;document.getElementById("exType").value=e.type||"Harian";
+  document.getElementById("exName").value=e.name;document.getElementById("exAmount").value=fmtRibuan(e.amount);document.getElementById("exNote").value=e.note;document.getElementById("exType").value=e.type||"Harian";document.getElementById("exSumber").value=e.sumber||"Warkop";
   document.getElementById("exSaveBtn").textContent="💾 Update Pengeluaran";
   exScrollBeforeEdit=document.getElementById("expenseOverlay").querySelector(".sheet-body").scrollTop;
   document.getElementById("expenseOverlay").querySelector(".sheet-body").scrollTop=0;
@@ -3748,6 +3752,17 @@ function renderPribadi(r){
         ${c.items.map(it=>`<div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#6B5D52;padding:4px 0 4px 10px"><span>${escTxt(it.name)}${it.note?' · '+escTxt(it.note):''}</span><span style="flex-shrink:0">${rp(it.amount)}</span></div>`).join("")}
       </div>`).join("");
   h+=`</div>`;
+  if(r.ownerExpensesByCat && r.ownerExpensesByCat.length){
+    h+=`<div class="rpt-sec"><h4>👤 Pengeluaran dari Owner (di luar Sisa)</h4>
+      <div style="font-size:11.5px;color:#6B5D52;margin-bottom:8px">Dibayar pakai uang pribadi Owner, bukan kas warkop — jadi gak ikut ngurangin Sisa/Uang Laci di atas.</div>`;
+    h+=r.ownerExpensesByCat.map(c=>`
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;padding:6px 0;border-bottom:1px solid var(--line-hot)"><span>${escTxt(c.cat)}</span><span>${rp(c.total)}</span></div>
+        ${c.items.map(it=>`<div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#6B5D52;padding:4px 0 4px 10px"><span>${escTxt(it.name)}${it.note?' · '+escTxt(it.note):''}</span><span style="flex-shrink:0">${rp(it.amount)}</span></div>`).join("")}
+      </div>`).join("");
+    h+=`<div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;padding:6px 0;border-top:2px solid var(--line-hot)"><span>Total dari Owner</span><span>${rp(r.ownerExpensesTotal)}</span></div>`;
+    h+=`</div>`;
+  }
   h+=`<div class="rpt-sec"><h4>📱 QR Manual</h4>`;
   h+= r.isRange ? `<div style="font-size:11.5px;color:#6B5D52;margin-bottom:8px">Nambah entri QR baru cuma bisa dari tampilan Hari Ini/Kemarin (perlu pilih tanggalnya).</div>` : `
     <div style="display:flex;gap:8px;margin-bottom:4px;align-items:flex-start">
@@ -3803,6 +3818,12 @@ function pribadiHtmlBody(r){
   b+= !r.expensesByCat.length ? `<p class="sub">Belum ada pengeluaran.</p>`
     : `<table><tr><th>Kategori / Keterangan</th><th class="num">Jumlah</th></tr>`+r.expensesByCat.map(c=>`<tr style="font-weight:bold;background:#f7f4ee"><td>${escTxt(c.cat)}</td><td class="num">${rp(c.total)}</td></tr>`
       +c.items.map(it=>`<tr><td style="padding-left:20px;color:#555">${escTxt(it.name)}${it.note?' · '+escTxt(it.note):''}</td><td class="num">${rp(it.amount)}</td></tr>`).join("")).join("")+`</table>`;
+  if(r.ownerExpensesByCat && r.ownerExpensesByCat.length){
+    b+=`<h3>Pengeluaran dari Owner (di luar Sisa)</h3><p class="sub">Dibayar pakai uang pribadi Owner, bukan kas warkop.</p>`;
+    b+=`<table><tr><th>Kategori / Keterangan</th><th class="num">Jumlah</th></tr>`+r.ownerExpensesByCat.map(c=>`<tr style="font-weight:bold;background:#f7f4ee"><td>${escTxt(c.cat)}</td><td class="num">${rp(c.total)}</td></tr>`
+      +c.items.map(it=>`<tr><td style="padding-left:20px;color:#555">${escTxt(it.name)}${it.note?' · '+escTxt(it.note):''}</td><td class="num">${rp(it.amount)}</td></tr>`).join("")).join("")
+      +`<tr style="font-weight:bold"><td>Total dari Owner</td><td class="num">${rp(r.ownerExpensesTotal)}</td></tr></table>`;
+  }
   b+=`<h3>QR Manual</h3>`;
   b+= !r.qrEntries.length ? `<p class="sub">Belum ada entri QR.</p>`
     : `<table><tr><th>Catatan</th><th class="num">Jumlah</th></tr>`+r.qrEntries.map(x=>`<tr><td>${escTxt(x.note)||'—'}</td><td class="num">${rp(x.amount)}</td></tr>`).join("")+`</table>`;
@@ -3864,6 +3885,16 @@ function downloadPribadiPDF(){
     c.items.forEach(it=>expRows.push(["   "+it.name+(it.note?" · "+it.note:""), rp(it.amount)]));
   });
   if(expRows.length) y=pdfSection(doc,y,"Pengeluaran per Kategori",["Kategori / Keterangan","Jumlah"],expRows,{columnStyles:{1:{halign:"right"}}});
+
+  if(r.ownerExpensesByCat && r.ownerExpensesByCat.length){
+    const ownerRows=[];
+    r.ownerExpensesByCat.forEach(c=>{
+      ownerRows.push([c.cat, rp(c.total)]);
+      c.items.forEach(it=>ownerRows.push(["   "+it.name+(it.note?" · "+it.note:""), rp(it.amount)]));
+    });
+    ownerRows.push(["TOTAL DARI OWNER", rp(r.ownerExpensesTotal)]);
+    y=pdfSection(doc,y,"Pengeluaran dari Owner (di luar Sisa)",["Kategori / Keterangan","Jumlah"],ownerRows,{columnStyles:{1:{halign:"right"}}});
+  }
 
   if(r.qrEntries.length){
     y=pdfSection(doc,y,"QR Manual",["Catatan","Jumlah"],r.qrEntries.map(x=>[x.note||"—",rp(x.amount)]),{columnStyles:{1:{halign:"right"}}});
