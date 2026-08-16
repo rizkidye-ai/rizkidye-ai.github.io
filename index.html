@@ -2444,7 +2444,7 @@ function renderExpenses(){
   if(!list.length){box.innerHTML='<div style="text-align:center;color:#6B5D52;padding:24px">'+(q?"Tidak ada pengeluaran yang cocok.":"Belum ada pengeluaran di periode ini.")+'</div>';return;}
   const rowH=e=>`
     <div class="inv-row">
-      <div class="ir-name"><b>${e.name}</b> <span class="role-badge" style="background:${EXP_COLORS[e.cat]||'#999'};color:#fff">${e.cat}</span>${e.sumber==='Owner'?' <span class="role-badge" style="background:var(--navy);color:#fff">👤 Owner</span>':''}<div class="ir-cat">${idDate(e.date)}${e.note?' · '+e.note:''} · oleh ${e.by}</div></div>
+      <div class="ir-name"><b>${e.name}</b> <span class="role-badge" style="background:${EXP_COLORS[e.cat]||'#999'};color:#fff">${e.cat}</span>${(e.note||'').includes('kesplit dari total')?' <span class="role-badge" style="background:var(--forest);color:#fff">✂️ Split</span>':''}${e.sumber==='Owner'?' <span class="role-badge" style="background:var(--navy);color:#fff">👤 Owner</span>':''}<div class="ir-cat">${idDate(e.date)}${e.note?' · '+e.note:''} · oleh ${e.by}</div></div>
       <div class="pr-price" style="color:#A02020">${rp(e.amount)}</div>
       <button class="pr-row-btn" onclick="editExpense('${e.id}')">Edit</button>
       <button class="pr-row-btn" style="color:var(--alert);border-color:#f4c2c2" onclick="deleteExpenseC('${e.id}')">Hapus</button>
