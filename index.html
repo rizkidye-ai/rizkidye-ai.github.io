@@ -746,13 +746,21 @@
         </div>
         <div class="grid2">
           <div class="ff"><label>Jenis Pengeluaran</label><select id="exType"><option>Harian</option><option>Bulanan</option></select></div>
-          <div class="ff"><label>Sumber Dana</label><select id="exSumber"><option>Warkop</option><option>Owner</option></select></div>
+          <div class="ff" id="exSumberWrap"><label>Sumber Dana</label><select id="exSumber"><option>Warkop</option><option>Owner</option></select></div>
         </div>
+        <label id="exSplitLabel" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12.5px;color:#6B5D52;margin:-6px 0 10px">
+          <input type="checkbox" id="exSplitToggle" onchange="toggleExpSplit()"> Kesplit? (sebagian dari Warkop, sebagian dari Owner)
+        </label>
         <div class="ff"><label>Keterangan</label><input id="exName" placeholder="cth: Beli sedotan, Beli es batu, Bayar listrik"></div>
-        <div class="grid2">
+        <div class="grid2" id="exAmountNormalRow">
           <div class="ff"><label>Jumlah (Rp)</label><input id="exAmount" type="text" inputmode="numeric" placeholder="0" oninput="onRupiahInput(this)"></div>
-          <div class="ff"><label>Catatan (opsional)</label><input id="exNote" placeholder="opsional"></div>
         </div>
+        <div class="grid2 hidden" id="exAmountSplitRow">
+          <div class="ff"><label>Dari Warkop (Rp)</label><input id="exAmountWarkop" type="text" inputmode="numeric" placeholder="0" oninput="onRupiahInput(this);updateExpSplitTotal();"></div>
+          <div class="ff"><label>Dari Owner (Rp)</label><input id="exAmountOwner" type="text" inputmode="numeric" placeholder="0" oninput="onRupiahInput(this);updateExpSplitTotal();"></div>
+        </div>
+        <div class="hidden" id="exSplitTotalWrap" style="font-size:12.5px;color:#6B5D52;margin:-6px 0 10px">Total: <b id="exSplitTotal">Rp 0</b></div>
+        <div class="ff"><label>Catatan (opsional)</label><input id="exNote" placeholder="opsional"></div>
         <div class="uf-actions">
           <button style="background:var(--success)" id="exSaveBtn" onclick="saveExpense()">💾 Simpan Pengeluaran</button>
           <button style="background:#9b9081" id="exCancelBtn" onclick="cancelExpenseEdit()">Batal</button>
@@ -2514,7 +2522,19 @@ function readExpForm(){
   name:document.getElementById("exName").value.trim(),amount:rpVal("exAmount"),
   note:document.getElementById("exNote").value.trim(),type:document.getElementById("exType").value,
   sumber:document.getElementById("exSumber").value};}
-function resetExpenseForm(){exEditId=null;document.getElementById("exName").value="";document.getElementById("exAmount").value="";document.getElementById("exNote").value="";document.getElementById("exDate").value=bizYmd(new Date());document.getElementById("exType").value="Harian";document.getElementById("exSumber").value="Warkop";
+function toggleExpSplit(){
+  const split=document.getElementById("exSplitToggle").checked;
+  document.getElementById("exSumberWrap").classList.toggle("hidden",split);
+  document.getElementById("exAmountNormalRow").classList.toggle("hidden",split);
+  document.getElementById("exAmountSplitRow").classList.toggle("hidden",!split);
+  document.getElementById("exSplitTotalWrap").classList.toggle("hidden",!split);
+  if(split)updateExpSplitTotal();
+}
+function updateExpSplitTotal(){
+  document.getElementById("exSplitTotal").textContent=rp(rpVal("exAmountWarkop")+rpVal("exAmountOwner"));
+}
+function resetExpenseForm(){exEditId=null;document.getElementById("exName").value="";document.getElementById("exAmount").value="";document.getElementById("exAmountWarkop").value="";document.getElementById("exAmountOwner").value="";document.getElementById("exNote").value="";document.getElementById("exDate").value=bizYmd(new Date());document.getElementById("exType").value="Harian";document.getElementById("exSumber").value="Warkop";
+  document.getElementById("exSplitToggle").checked=false;document.getElementById("exSplitLabel").classList.remove("hidden");toggleExpSplit();
   const keep=document.getElementById("exCat").value==="__new__"?"Belanja Stok":undefined;
   populateExpCatOptions(keep);
   document.getElementById("exCatNewRow").classList.add("hidden");
@@ -2522,9 +2542,28 @@ function resetExpenseForm(){exEditId=null;document.getElementById("exName").valu
   document.getElementById("exCatManage").classList.add("hidden");
   document.getElementById("exSaveBtn").textContent="💾 Simpan Pengeluaran";}
 async function saveExpense(){
-  const f=readExpForm();
-  if(!f.cat){toast("Pilih atau tambah kategorinya dulu");return;}
-  if(!f.name){toast("Isi keterangan dulu");return;}
+  const cat=document.getElementById("exCat").value==="__new__"?"":document.getElementById("exCat").value;
+  const date=document.getElementById("exDate").value;
+  const name=document.getElementById("exName").value.trim();
+  const note=document.getElementById("exNote").value.trim();
+  const type=document.getElementById("exType").value;
+  if(!cat){toast("Pilih atau tambah kategorinya dulu");return;}
+  if(!name){toast("Isi keterangan dulu");return;}
+
+  if(document.getElementById("exSplitToggle").checked&&!exEditId){
+    const w=rpVal("exAmountWarkop"),o=rpVal("exAmountOwner");
+    if(!(w>0)&&!(o>0)){toast("Isi jumlah dari Warkop atau Owner dulu");return;}
+    const total=w+o,noteTag=(note?note+" · ":"")+"kesplit dari total "+rp(total);
+    try{
+      if(w>0)await run("addExpense",state.token,{cat,date,name,amount:w,note:noteTag+" (bagian Warkop)",type,sumber:"Warkop"});
+      if(o>0)await run("addExpense",state.token,{cat,date,name,amount:o,note:noteTag+" (bagian Owner)",type,sumber:"Owner"});
+      resetExpenseForm();await loadExpenses();
+      toast("Pengeluaran kesplit tersimpan ("+((w>0&&o>0)?"2":"1")+" baris)");
+    }catch(e){}
+    return;
+  }
+
+  const f={cat,date,name,note,type,amount:rpVal("exAmount"),sumber:document.getElementById("exSumber").value};
   if(!(f.amount>0)){toast("Jumlah harus lebih dari 0");return;}
   try{
     const wasEdit=!!exEditId;
@@ -2537,6 +2576,8 @@ async function saveExpense(){
 }
 function editExpense(id){
   const e=exData.find(x=>x.id===id);if(!e)return;exEditId=id;
+  document.getElementById("exSplitToggle").checked=false;toggleExpSplit();
+  document.getElementById("exSplitLabel").classList.add("hidden");
   populateExpCatOptions(e.cat);
   document.getElementById("exCatNewRow").classList.add("hidden");
   document.getElementById("exCatManage").classList.add("hidden");
