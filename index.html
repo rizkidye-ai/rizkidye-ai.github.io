@@ -2444,14 +2444,42 @@ function renderExpenses(){
   if(!list.length){box.innerHTML='<div style="text-align:center;color:#6B5D52;padding:24px">'+(q?"Tidak ada pengeluaran yang cocok.":"Belum ada pengeluaran di periode ini.")+'</div>';return;}
   const rowH=e=>`
     <div class="inv-row">
-      <div class="ir-name"><b>${e.name}</b> <span class="role-badge" style="background:${EXP_COLORS[e.cat]||'#999'};color:#fff">${e.cat}</span>${(e.note||'').includes('kesplit dari total')?' <span class="role-badge" style="background:var(--forest);color:#fff">✂️ Split</span>':''}${e.sumber==='Owner'?' <span class="role-badge" style="background:var(--navy);color:#fff">👤 Owner</span>':''}<div class="ir-cat">${idDate(e.date)}${e.note?' · '+e.note:''} · oleh ${e.by}</div></div>
+      <div class="ir-name"><b>${e.name}</b> <span class="role-badge" style="background:${EXP_COLORS[e.cat]||'#999'};color:#fff">${e.cat}</span>${e.sumber==='Owner'?' <span class="role-badge" style="background:var(--navy);color:#fff">👤 Owner</span>':''}<div class="ir-cat">${idDate(e.date)}${e.note?' · '+e.note:''} · oleh ${e.by}</div></div>
       <div class="pr-price" style="color:#A02020">${rp(e.amount)}</div>
       <button class="pr-row-btn" onclick="editExpense('${e.id}')">Edit</button>
       <button class="pr-row-btn" style="color:var(--alert);border-color:#f4c2c2" onclick="deleteExpenseC('${e.id}')">Hapus</button>
     </div>`;
+  const rowSplit=items=>{
+    const e0=items[0],total=items.reduce((s,x)=>s+x.amount,0);
+    const parts=items.map(x=>`<span style="display:inline-flex;align-items:center;gap:5px;background:var(--panel-3);border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:11.5px;margin:4px 6px 0 0">${x.sumber==='Owner'?'👤 Owner':'🏪 Warkop'}: <b>${rp(x.amount)}</b><button style="width:auto;margin:0;padding:1px 6px;background:none;color:var(--muted);font-size:10.5px;border:1px solid var(--line);border-radius:6px" onclick="editExpense('${x.id}')">Edit</button><button style="width:auto;margin:0;padding:1px 6px;background:none;color:var(--void);font-size:10.5px;border:1px solid #f4c2c2;border-radius:6px" onclick="deleteExpenseC('${x.id}')">Hapus</button></span>`).join("");
+    return `
+      <div class="inv-row" style="flex-wrap:wrap">
+        <div class="ir-name" style="flex-basis:100%">
+          <b>${e0.name}</b> <span class="role-badge" style="background:${EXP_COLORS[e0.cat]||'#999'};color:#fff">${e0.cat}</span> <span class="role-badge" style="background:var(--forest);color:#fff">✂️ Split</span>
+          <span class="pr-price" style="color:#A02020;float:right">${rp(total)}</span>
+          <div class="ir-cat">${idDate(e0.date)} · oleh ${e0.by}</div>
+          <div>${parts}</div>
+        </div>
+      </div>`;
+  };
+  // pasangan baris dari 1x Split (nama+tanggal+kategori+catatan "kesplit dari total Rp..." sama) digabung jadi 1 kartu
+  function splitKey(e){const m=(e.note||'').match(/kesplit dari total (Rp\s?[\d.,]+)/);return m?(e.name+'|'+ymd(e.date)+'|'+e.cat+'|'+m[1]):null;}
+  function groupRows(rows){
+    const out=[],seen=new Set();
+    rows.forEach(e=>{
+      if(seen.has(e.id))return;
+      const key=splitKey(e);
+      if(key){
+        const partners=rows.filter(x=>!seen.has(x.id)&&splitKey(x)===key);
+        partners.forEach(x=>seen.add(x.id));
+        out.push(partners.length>1?rowSplit(partners):rowH(partners[0]));
+      }else{seen.add(e.id);out.push(rowH(e));}
+    });
+    return out.join("");
+  }
   let h="";
-  if(dHarian.length)h+=`<h4 class="rpt-sec" style="margin-bottom:6px">☀️ Pengeluaran Harian — ${rp(tH)}</h4>`+dHarian.map(rowH).join("");
-  if(dBulanan.length)h+=`<h4 class="rpt-sec" style="margin:14px 0 6px">📦 Belanja Bulanan — ${rp(tB)}</h4>`+dBulanan.map(rowH).join("");
+  if(dHarian.length)h+=`<h4 class="rpt-sec" style="margin-bottom:6px">☀️ Pengeluaran Harian — ${rp(tH)}</h4>`+groupRows(dHarian);
+  if(dBulanan.length)h+=`<h4 class="rpt-sec" style="margin:14px 0 6px">📦 Belanja Bulanan — ${rp(tB)}</h4>`+groupRows(dBulanan);
   box.innerHTML=h;
 }
 function builtinExpCats(){return ["Belanja Stok","Operasional","Gaji Karyawan","Uang Makan Karyawan","Galon Air","Gas","Sewa Tempat","Listrik & Air","Tabungan Gas","Tabungan Listrik","Tabungan","Lain-lain"];}
