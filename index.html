@@ -189,8 +189,9 @@
   .cart{padding:0;display:flex;flex-direction:column;position:sticky;top:78px;max-height:calc(100vh - 96px);}
   .cart-scroll{flex:1;min-height:0;overflow-y:auto;}
   .cart h2{margin:0;padding:14px 16px;font-size:10px;font-family:var(--mono);letter-spacing:2px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:transparent;font-weight:600;border-radius:18px 18px 0 0;}
-  .cart h2 .clear{background:none;color:var(--void);font-size:11px;font-weight:600;font-family:var(--mono);letter-spacing:.5px;text-transform:none;}
-  .cart-close{display:none;background:none;color:var(--void);font-size:13px;font-weight:700;}
+  .cart h2 .h2-actions{display:flex;align-items:center;gap:10px;}
+  .cart h2 .clear{background:rgba(165,41,58,.1);color:var(--amber-soft);border:1px solid rgba(165,41,58,.35);font-size:11px;font-weight:700;font-family:var(--mono);letter-spacing:.5px;text-transform:none;padding:7px 12px;border-radius:9px;}
+  .cart-close{display:none;background:var(--panel-3);border:1px solid var(--line-hot);color:var(--txt);font-size:12.5px;font-weight:700;padding:7px 12px;border-radius:9px;}
   .edit-banner{background:rgba(165,41,58,.08);border-bottom:1px solid var(--line);padding:10px 16px;font-size:13px;color:var(--amber-soft);font-weight:600;display:flex;align-items:center;justify-content:space-between;}
   .edit-banner .batal{background:none;color:var(--muted);font-size:12px;font-weight:600;text-decoration:underline;}
   .cart-items{padding:6px 10px;min-height:50px;}
@@ -416,6 +417,8 @@
     .mobile-bar .mb-info{flex:1;}.mobile-bar .mb-count{font-family:var(--mono);font-size:11px;color:var(--muted);}.mobile-bar .mb-total{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--amber-soft);}
     .mobile-bar .mb-btn{background:var(--amber);color:#fff;padding:11px 18px;border-radius:11px;font-weight:700;font-size:14.5px;}
     .cart-close{display:block;}
+    .cart h2 .h2-actions{gap:14px;}
+    .cart h2 .clear,.cart-close{padding:9px 14px;min-height:38px;}
     .products{margin-bottom:64px;}
   }
   @media print{body *{visibility:hidden;}#receiptPrint,#receiptPrint *{visibility:visible;}#receiptPrint{position:absolute;left:0;top:0;width:100%;}.receipt-actions{display:none;}}
@@ -522,7 +525,7 @@
     <section class="panel cart" id="cart">
       <h2>
         <span id="cartTitle">Transaksi Baru</span>
-        <span>
+        <span class="h2-actions">
           <button class="cart-close" onclick="toggleCart(false)">Tutup ✕</button>
           <button class="clear" onclick="clearCart()">Kosongkan</button>
         </span>
