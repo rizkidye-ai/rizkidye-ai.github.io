@@ -3797,14 +3797,36 @@ async function loadPribadiMonthly(){
     body.innerHTML='<div style="color:var(--void)">⚠️ Gagal memuat: '+escTxt((e&&e.message)||e)+'<br><button style="width:auto;margin-top:10px;padding:8px 14px;background:var(--coffee);color:#fff;border-radius:9px" onclick="pribadiMonthlyLoaded=false;loadPribadiMonthly();">Coba Lagi</button></div>';
   }
 }
+function pribadiCatBlock(c){
+  return `<div style="margin-bottom:8px">
+    <div style="display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;padding:4px 0;border-bottom:1px solid var(--line-hot)"><span>${escTxt(c.cat)}</span><span>${rp(c.total)}</span></div>
+    ${c.items.map(it=>`<div style="display:flex;justify-content:space-between;gap:10px;font-size:11.5px;color:#6B5D52;padding:3px 0 3px 10px"><span>${escTxt(it.name)}${it.note?' · '+escTxt(it.note):''}</span><span style="flex-shrink:0">${rp(it.amount)}</span></div>`).join("")}
+  </div>`;
+}
 function renderPribadiMonthly(r){
   const body=document.getElementById("pribadiMonthlyBody");
   if(!r.months.length){body.innerHTML='<div style="font-size:12.5px;color:#6B5D52">Belum ada data pengeluaran.</div>';return;}
-  let h=`<table class="rpt-table"><tr><th>Bulan</th><th class="num">🏪 Warkop</th><th class="num">👤 Owner</th><th class="num">Total</th></tr>`;
-  h+=r.months.map(m=>`<tr><td>${monthLabel(m.month)}</td><td class="num">${rp(m.warkop)}</td><td class="num">${rp(m.owner)}</td><td class="num"><b>${rp(m.total)}</b></td></tr>`).join("");
-  h+=`<tr style="font-weight:700;border-top:2px solid var(--line-hot)"><td>GRAND TOTAL</td><td class="num">${rp(r.grandWarkop)}</td><td class="num">${rp(r.grandOwner)}</td><td class="num">${rp(r.grandTotal)}</td></tr>`;
-  h+=`</table>`;
+  let h=r.months.map((m,i)=>`
+    <div style="border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;background:var(--panel-3)" onclick="toggleMonthDetail(${i})">
+        <b>${monthLabel(m.month)}</b>
+        <span style="display:flex;gap:12px;align-items:center;font-size:12px;flex-wrap:wrap;justify-content:flex-end">
+          <span>🏪 ${rp(m.warkop)}</span><span>👤 ${rp(m.owner)}</span><b style="font-size:13px">${rp(m.total)}</b>
+          <span id="monthCaret${i}">▾</span>
+        </span>
+      </div>
+      <div id="monthDetail${i}" class="hidden" style="padding:10px 12px">
+        ${!m.warkopByCat.length?'':`<div style="font-weight:700;font-size:12px;color:var(--muted);margin-bottom:4px">🏪 Warkop</div>`+m.warkopByCat.map(pribadiCatBlock).join("")}
+        ${!m.ownerByCat.length?'':`<div style="font-weight:700;font-size:12px;color:var(--muted);margin:${m.warkopByCat.length?'12':'0'}px 0 4px">👤 Owner</div>`+m.ownerByCat.map(pribadiCatBlock).join("")}
+      </div>
+    </div>`).join("");
+  h+=`<div style="display:flex;justify-content:space-between;align-items:center;font-weight:700;padding:10px 12px;border-top:2px solid var(--line-hot)"><span>GRAND TOTAL</span><span style="display:flex;gap:12px;font-size:13px">🏪 ${rp(r.grandWarkop)} 👤 ${rp(r.grandOwner)} <b>${rp(r.grandTotal)}</b></span></div>`;
   body.innerHTML=h;
+}
+function toggleMonthDetail(i){
+  const el=document.getElementById("monthDetail"+i);
+  el.classList.toggle("hidden");
+  document.getElementById("monthCaret"+i).textContent=el.classList.contains("hidden")?"▾":"▴";
 }
 function pribadiPresetButtons(){return ["hari","kemarin","bulan","bulanlalu","tahun","tahunlalu","custom"];}
 function setPribadiPreset(mode){

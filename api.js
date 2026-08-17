@@ -625,19 +625,23 @@ const API = {
     const u = requireUser(token);
     if (!isAdminRole(u.role)) throw new Error('Akses ditolak — khusus Admin/Owner.');
 
-    const rows = await fetchAllRows('expenses', 'date,amount,sumber,type');
+    const rows = await fetchAllRows('expenses', 'date,cat,name,note,amount,sumber,type');
 
     // beda dari rekap harian: di sini pengeluaran Harian & Bulanan (tagihan rutin) DIGABUNG —
-    // ini rekap TOTAL pengeluaran per bulan, bukan rekonsiliasi kas hari itu
+    // ini rekap TOTAL pengeluaran per bulan, bukan rekonsiliasi kas hari itu.
+    // Rincian per kategori+item disimpan juga per bulan (Warkop & Owner dipisah) buat drill-down di tampilan.
     const byMonth = {};
     (rows||[]).filter(e => e.date).forEach(e => {
       const m = String(e.date).slice(0,7); // 'YYYY-MM'
-      if (!byMonth[m]) byMonth[m] = { month: m, warkop: 0, owner: 0 };
-      if (e.sumber === 'Owner') byMonth[m].owner += Number(e.amount)||0;
-      else byMonth[m].warkop += Number(e.amount)||0;
+      if (!byMonth[m]) byMonth[m] = { month: m, warkop: 0, owner: 0, warkopRows: [], ownerRows: [] };
+      const item = { cat: e.cat||'Lain-lain', name: e.name||'', note: e.note||'', amount: Number(e.amount)||0 };
+      if (e.sumber === 'Owner') { byMonth[m].owner += item.amount; byMonth[m].ownerRows.push(item); }
+      else { byMonth[m].warkop += item.amount; byMonth[m].warkopRows.push(item); }
     });
-    const months = Object.values(byMonth).map(x => ({ ...x, total: x.warkop + x.owner }))
-      .sort((a,b) => b.month.localeCompare(a.month));
+    const months = Object.values(byMonth).map(x => ({
+      month: x.month, warkop: x.warkop, owner: x.owner, total: x.warkop + x.owner,
+      warkopByCat: groupExpensesByCat(x.warkopRows), ownerByCat: groupExpensesByCat(x.ownerRows)
+    })).sort((a,b) => b.month.localeCompare(a.month));
     const grandWarkop = months.reduce((s,x)=>s+x.warkop,0);
     const grandOwner = months.reduce((s,x)=>s+x.owner,0);
 
