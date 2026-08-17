@@ -1162,7 +1162,14 @@
         <button class="rpt-p on" id="pri-hari" onclick="setPribadiPreset('hari')">Hari Ini</button>
         <button class="rpt-p" id="pri-kemarin" onclick="setPribadiPreset('kemarin')">Kemarin</button>
         <button class="rpt-p" id="pri-bulan" onclick="setPribadiPreset('bulan')">Bulan Ini</button>
+        <button class="rpt-p" id="pri-bulanlalu" onclick="setPribadiPreset('bulanlalu')">Bulan Lalu</button>
         <button class="rpt-p" id="pri-tahun" onclick="setPribadiPreset('tahun')">Tahun Ini</button>
+        <button class="rpt-p" id="pri-tahunlalu" onclick="setPribadiPreset('tahunlalu')">Tahun Lalu</button>
+        <button class="rpt-p" id="pri-custom" onclick="setPribadiPreset('custom')">Pilih Tanggal</button>
+      </div>
+      <div class="rpt-custom hidden" id="pribadiCustomRange">
+        <span>Dari</span><input type="date" id="pribadiFromInp" onchange="applyPribadiCustomRange()">
+        <span>s/d</span><input type="date" id="pribadiToInp" onchange="applyPribadiCustomRange()">
       </div>
       <div id="pribadiDayNav" style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
         <button class="rpt-p" onclick="shiftPribadiDay(-1)">◀</button>
@@ -3763,22 +3770,36 @@ function openPribadi(){
   document.getElementById("pribadiOverlay").classList.remove("hidden");
   setPribadiPreset("hari");
 }
-function pribadiPresetButtons(){return ["hari","kemarin","bulan","tahun"];}
+function pribadiPresetButtons(){return ["hari","kemarin","bulan","bulanlalu","tahun","tahunlalu","custom"];}
 function setPribadiPreset(mode){
   pribadiMode=mode;
   pribadiPresetButtons().forEach(m=>document.getElementById("pri-"+m).classList.toggle("on",m===mode));
   const dayNav=document.getElementById("pribadiDayNav"),rangeLabel=document.getElementById("pribadiRangeLabel");
+  const customRow=document.getElementById("pribadiCustomRange");
+  customRow.classList.toggle("hidden",mode!=="custom");
   if(mode==="hari"||mode==="kemarin"){
     dayNav.classList.remove("hidden");rangeLabel.classList.add("hidden");
     const d=bizNow();if(mode==="kemarin")d.setDate(d.getDate()-1);
     pribadiDate=ymd(d);document.getElementById("pribadiDate").value=pribadiDate;
     loadPribadi();
+  }else if(mode==="custom"){
+    dayNav.classList.add("hidden");rangeLabel.classList.add("hidden");
+    if(!document.getElementById("pribadiFromInp").value){
+      const now=bizNow();
+      document.getElementById("pribadiFromInp").value=ymd(new Date(now.getFullYear(),now.getMonth(),1));
+      document.getElementById("pribadiToInp").value=ymd(now);
+    }
+    applyPribadiCustomRange();
   }else{
     dayNav.classList.add("hidden");rangeLabel.classList.remove("hidden");
     const now=bizNow();
-    const from=mode==="bulan"?new Date(now.getFullYear(),now.getMonth(),1):new Date(now.getFullYear(),0,1);
-    pribadiFrom=ymd(from);pribadiTo=ymd(now);
-    rangeLabel.textContent="📅 "+idDate(from)+" — "+idDate(now);
+    let from,to;
+    if(mode==="bulan"){from=new Date(now.getFullYear(),now.getMonth(),1);to=now;}
+    else if(mode==="bulanlalu"){from=new Date(now.getFullYear(),now.getMonth()-1,1);to=new Date(now.getFullYear(),now.getMonth(),0);}
+    else if(mode==="tahun"){from=new Date(now.getFullYear(),0,1);to=now;}
+    else{from=new Date(now.getFullYear()-1,0,1);to=new Date(now.getFullYear()-1,11,31);}
+    pribadiFrom=ymd(from);pribadiTo=ymd(to);
+    rangeLabel.textContent="📅 "+idDate(from)+" — "+idDate(to);
     loadPribadiRange(pribadiFrom,pribadiTo);
   }
 }
@@ -3786,6 +3807,14 @@ function pribadiDateChanged(){
   pribadiMode=null;
   pribadiPresetButtons().forEach(m=>document.getElementById("pri-"+m).classList.remove("on"));
   loadPribadi();
+}
+function applyPribadiCustomRange(){
+  const f=document.getElementById("pribadiFromInp").value,t=document.getElementById("pribadiToInp").value;
+  if(!f||!t)return;
+  let a=new Date(f+"T00:00:00"),b=new Date(t+"T00:00:00");
+  if(a>b){const tmp=a;a=b;b=tmp;}
+  pribadiFrom=ymd(a);pribadiTo=ymd(b);
+  loadPribadiRange(pribadiFrom,pribadiTo);
 }
 function shiftPribadiDay(delta){
   const d=new Date(pribadiDate+"T00:00:00");d.setDate(d.getDate()+delta);
