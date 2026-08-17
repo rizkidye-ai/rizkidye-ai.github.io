@@ -1158,6 +1158,8 @@
     <header><h3>🔒 Rekap Pribadi</h3><button onclick="closeOverlay('pribadiOverlay')">✕</button></header>
     <div class="sheet-body">
       <div style="font-size:12px;color:#6B5D52;margin-bottom:10px">Cuma kelihatan sama Admin/Owner. Pengeluaran & Uang Laci otomatis, QR diisi manual per transaksi.</div>
+      <div class="seg" style="margin-bottom:14px"><button id="pri-tab1" class="seg-b on" onclick="setPribadiTab(1)">📅 Harian / Periode</button><button id="pri-tab2" class="seg-b" onclick="setPribadiTab(2)">📊 Per Bulan</button></div>
+      <div id="pribadiTab1">
       <div class="rpt-presets" style="margin-bottom:10px">
         <button class="rpt-p on" id="pri-hari" onclick="setPribadiPreset('hari')">Hari Ini</button>
         <button class="rpt-p" id="pri-kemarin" onclick="setPribadiPreset('kemarin')">Kemarin</button>
@@ -1183,6 +1185,11 @@
         <button class="rpt-exp" style="background:var(--forest)" onclick="downloadPribadiImage()">🖼️ Simpan Gambar</button>
       </div>
       <div id="pribadiBody">Memuat...</div>
+      </div>
+      <div id="pribadiTab2" class="hidden">
+        <div style="font-size:12px;color:#6B5D52;margin-bottom:10px">Rincian pengeluaran (jenis Harian) tiap bulan — dipisah mana yang keluar dari kas Warkop, mana dari dompet Owner.</div>
+        <div id="pribadiMonthlyBody">Memuat...</div>
+      </div>
     </div>
   </div>
 </div>
@@ -3765,10 +3772,39 @@ function renderAnalisa(){
 /* ---------- EVALUASI BULANAN ---------- */
 let evMode="bulan";
 let pribadiDate=null,pribadiData=null,pribadiMode="hari",pribadiFrom=null,pribadiTo=null;
+let pribadiMonthlyLoaded=false;
 function openPribadi(){
   if(!isAdmin()){toast("Khusus Admin/Owner");return;}
   document.getElementById("pribadiOverlay").classList.remove("hidden");
+  pribadiMonthlyLoaded=false;
+  setPribadiTab(1);
   setPribadiPreset("hari");
+}
+function setPribadiTab(n){
+  document.getElementById("pri-tab1").classList.toggle("on",n===1);
+  document.getElementById("pri-tab2").classList.toggle("on",n===2);
+  document.getElementById("pribadiTab1").classList.toggle("hidden",n!==1);
+  document.getElementById("pribadiTab2").classList.toggle("hidden",n!==2);
+  if(n===2&&!pribadiMonthlyLoaded){pribadiMonthlyLoaded=true;loadPribadiMonthly();}
+}
+async function loadPribadiMonthly(){
+  const body=document.getElementById("pribadiMonthlyBody");
+  body.innerHTML="Memuat...";
+  try{
+    const r=await run("getPersonalMonthly",state.token);
+    renderPribadiMonthly(r);
+  }catch(e){
+    body.innerHTML='<div style="color:var(--void)">⚠️ Gagal memuat: '+escTxt((e&&e.message)||e)+'<br><button style="width:auto;margin-top:10px;padding:8px 14px;background:var(--coffee);color:#fff;border-radius:9px" onclick="pribadiMonthlyLoaded=false;loadPribadiMonthly();">Coba Lagi</button></div>';
+  }
+}
+function renderPribadiMonthly(r){
+  const body=document.getElementById("pribadiMonthlyBody");
+  if(!r.months.length){body.innerHTML='<div style="font-size:12.5px;color:#6B5D52">Belum ada data pengeluaran.</div>';return;}
+  let h=`<table class="rpt-table"><tr><th>Bulan</th><th class="num">🏪 Warkop</th><th class="num">👤 Owner</th><th class="num">Total</th></tr>`;
+  h+=r.months.map(m=>`<tr><td>${monthLabel(m.month)}</td><td class="num">${rp(m.warkop)}</td><td class="num">${rp(m.owner)}</td><td class="num"><b>${rp(m.total)}</b></td></tr>`).join("");
+  h+=`<tr style="font-weight:700;border-top:2px solid var(--line-hot)"><td>GRAND TOTAL</td><td class="num">${rp(r.grandWarkop)}</td><td class="num">${rp(r.grandOwner)}</td><td class="num">${rp(r.grandTotal)}</td></tr>`;
+  h+=`</table>`;
+  body.innerHTML=h;
 }
 function pribadiPresetButtons(){return ["hari","kemarin","bulan","bulanlalu","tahun","tahunlalu","custom"];}
 function setPribadiPreset(mode){

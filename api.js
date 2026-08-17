@@ -621,6 +621,27 @@ const API = {
       qrEntries, qrTotal, laci, laciDays, laciDone: laciDays > 0, pemasukan, sisa };
   },
 
+  async getPersonalMonthly(token){
+    const u = requireUser(token);
+    if (!isAdminRole(u.role)) throw new Error('Akses ditolak — khusus Admin/Owner.');
+
+    const rows = await fetchAllRows('expenses', 'date,amount,sumber,type');
+
+    const byMonth = {};
+    (rows||[]).filter(e => e.type !== 'Bulanan' && e.date).forEach(e => {
+      const m = String(e.date).slice(0,7); // 'YYYY-MM'
+      if (!byMonth[m]) byMonth[m] = { month: m, warkop: 0, owner: 0 };
+      if (e.sumber === 'Owner') byMonth[m].owner += Number(e.amount)||0;
+      else byMonth[m].warkop += Number(e.amount)||0;
+    });
+    const months = Object.values(byMonth).map(x => ({ ...x, total: x.warkop + x.owner }))
+      .sort((a,b) => b.month.localeCompare(a.month));
+    const grandWarkop = months.reduce((s,x)=>s+x.warkop,0);
+    const grandOwner = months.reduce((s,x)=>s+x.owner,0);
+
+    return { months, grandWarkop, grandOwner, grandTotal: grandWarkop+grandOwner };
+  },
+
   async addQrEntry(token, payload){
     const u = requireUser(token);
     if (!isAdminRole(u.role)) throw new Error('Akses ditolak — khusus Admin/Owner.');
