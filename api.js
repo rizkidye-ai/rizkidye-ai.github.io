@@ -627,8 +627,10 @@ const API = {
 
     const rows = await fetchAllRows('expenses', 'date,amount,sumber,type');
 
+    // beda dari rekap harian: di sini pengeluaran Harian & Bulanan (tagihan rutin) DIGABUNG —
+    // ini rekap TOTAL pengeluaran per bulan, bukan rekonsiliasi kas hari itu
     const byMonth = {};
-    (rows||[]).filter(e => e.type !== 'Bulanan' && e.date).forEach(e => {
+    (rows||[]).filter(e => e.date).forEach(e => {
       const m = String(e.date).slice(0,7); // 'YYYY-MM'
       if (!byMonth[m]) byMonth[m] = { month: m, warkop: 0, owner: 0 };
       if (e.sumber === 'Owner') byMonth[m].owner += Number(e.amount)||0;
