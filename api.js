@@ -180,6 +180,14 @@ async function notifyLowStock(lowStock){
   }
 }
 
+function itemsTotal(items){ return (items||[]).reduce((s,it)=>s+Number(it.qty)*Number(it.price),0); }
+function mergeItemsAdd(base, extra){
+  const map = {};
+  (base||[]).forEach(it => { const k=String(it.id); map[k]=map[k]||{ id:it.id, name:it.name, price:Number(it.price)||0, qty:0 }; map[k].qty += Number(it.qty)||0; });
+  (extra||[]).forEach(it => { if (!(Number(it.qty)>0)) return; const k=String(it.id); map[k]=map[k]||{ id:it.id, name:it.name, price:Number(it.price)||0, qty:0 }; map[k].qty += Number(it.qty); if (it.name) map[k].name = it.name; });
+  return Object.values(map).filter(it => it.qty > 0);
+}
+
 /* ---------- nomor struk (ikut hari usaha) ---------- */
 async function ymdKey(){
   const x = bizShift(new Date()); const p = n => String(n).padStart(2,'0');
@@ -875,11 +883,15 @@ const API = {
     requireUser(token);
     const { data, error } = await db.from('debts').select('*');
     need(error);
-    return (data||[]).filter(d => String(d.id||'').trim()!=='').map(d => ({
-      id:d.id, datetime:d.datetime?new Date(d.datetime).getTime():null, name:String(d.name||''), phone:String(d.phone||''),
-      items:d.items||[], total:Number(d.total)||0, paid:!!d.paid,
-      paidDate:d.paid_date?new Date(d.paid_date).getTime():null, method:d.method||'', note:d.note||'', by:d.by_user||''
-    })).sort((a,b)=> (a.paid-b.paid) || ((b.datetime||0)-(a.datetime||0)));
+    return (data||[]).filter(d => String(d.id||'').trim()!=='').map(d => {
+      const remainingItems = d.remaining_items || d.items || [];
+      return {
+        id:d.id, datetime:d.datetime?new Date(d.datetime).getTime():null, name:String(d.name||''), phone:String(d.phone||''),
+        items:d.items||[], remainingItems, owed: itemsTotal(remainingItems), total:Number(d.total)||0,
+        paidTotal: d.paid ? (Number(d.paid_total)||Number(d.total)||0) : (Number(d.paid_total)||0), paid:!!d.paid,
+        paidDate:d.paid_date?new Date(d.paid_date).getTime():null, method:d.method||'', note:d.note||'', by:d.by_user||''
+      };
+    }).sort((a,b)=> (a.paid-b.paid) || ((b.datetime||0)-(a.datetime||0)));
   },
 
   async createDebt(token, payload){
@@ -896,22 +908,83 @@ const API = {
     }
     const total = items.reduce((s,it)=>s+Number(it.qty)*Number(it.price),0);
     need(( await db.from('debts').insert([{ id:'D'+Date.now(), datetime:new Date().toISOString(),
-      name:String(payload.name), phone:String(payload.phone||''), items:items, total:total,
+      name:String(payload.name), phone:String(payload.phone||''), items:items, remaining_items:items, total:total, paid_total:0,
       paid:false, paid_date:null, method:'', note:String(payload.note||''), by_user:u.name }]) ).error);
     return { products: await getProductsList(), debts: await API.getDebts(token), tables: await getTablesList() };
   },
 
-  async payDebt(token, id, method, cash){
+  /* pelunasan hutang penuh — sama persis alurnya kayak checkout biasa (bisa tambah item, diskon, metode & kembalian nyata) */
+  async debtCheckout(token, payload){
     const u = requireUser(token);
-    const { data: d } = await db.from('debts').select('*').eq('id', String(id)).maybeSingle();
+    const { data: d } = await db.from('debts').select('*').eq('id', String(payload.debtId)).maybeSingle();
     if (!d) throw new Error('Hutang tidak ditemukan.');
     if (d.paid) throw new Error('Hutang ini sudah lunas.');
-    const total = Number(d.total)||0;
-    const no = await insertSale({ datetime:new Date().toISOString(), kasir:u.name, table:'HUTANG',
-      method:method||'Tunai', sub:total, disc:0, total:total, cash:Number(cash)||total,
-      kembalian:Math.max(0,(Number(cash)||total)-total), items:d.items||[], mix:null });
-    need(( await db.from('debts').update({ paid:true, paid_date:new Date().toISOString(), method:method||'Tunai' }).eq('id', String(id)) ).error);
-    return { debts: await API.getDebts(token), no:no, total:total };
+    const items = (payload.items||[]).filter(it => Number(it.qty) > 0);
+    if (!items.length) throw new Error('Keranjang kosong.');
+    const before = d.remaining_items || d.items || [];
+
+    const beforeMap = {}; before.forEach(it => beforeMap[String(it.id)] = Number(it.qty)||0);
+    const extra = [];
+    items.forEach(it => { const ex = Number(it.qty) - (beforeMap[String(it.id)]||0); if (ex > 0) extra.push({ id:it.id, name:it.name, qty:ex, price:it.price }); });
+
+    const [st, no] = await Promise.all([
+      applyStock(items, before, 'Pelunasan Hutang '+d.name, u.name),
+      insertSale({ datetime:new Date().toISOString(), kasir:u.name, table:'HUTANG',
+        method:payload.method, sub:Number(payload.sub)||0, disc:Number(payload.disc)||0,
+        total:Number(payload.total)||0, cash:Number(payload.cash)||0,
+        kembalian:Math.max(0,(Number(payload.cash)||0)-(Number(payload.total)||0)),
+        items:items, mix:payload.mix||null })
+    ]);
+    if (st.lowStock.length) notifyLowStock(st.lowStock);
+
+    need(( await db.from('debts').update({
+      paid:true, paid_date:new Date().toISOString(), method:payload.method||'Tunai',
+      items: mergeItemsAdd(d.items||[], extra), remaining_items: [],
+      paid_total: (Number(d.paid_total)||0) + (Number(payload.total)||0)
+    }).eq('id', String(payload.debtId)) ).error);
+    return { debts: await API.getDebts(token), products: await getProductsList(), no };
+  },
+
+  /* split bill buat hutang — persis kayak split meja, tapi motong dari sisa hutang, bukan pesanan meja */
+  async debtSplitCheckout(token, payload){
+    const u = requireUser(token);
+    const { data: d } = await db.from('debts').select('*').eq('id', String(payload.debtId)).maybeSingle();
+    if (!d) throw new Error('Hutang tidak ditemukan.');
+    if (d.paid) throw new Error('Hutang ini sudah lunas.');
+
+    let cur = d.remaining_items || d.items || [];
+    const payItems = (payload.items||[]).filter(it => Number(it.qty) > 0);
+    if (!payItems.length) throw new Error('Pilih item yang mau dibayar dulu.');
+
+    const extra = [];
+    payItems.forEach(pi => {
+      const it   = cur.filter(c => String(c.id) === String(pi.id))[0];
+      const have = it ? Number(it.qty) : 0;
+      const use  = Math.min(have, Number(pi.qty));
+      if (it) it.qty = have - use;
+      const ex = Number(pi.qty) - use;
+      if (ex > 0) extra.push({ id:pi.id, name:pi.name, qty:ex, price:pi.price });
+    });
+    cur = cur.filter(c => Number(c.qty) > 0);
+
+    const [, no] = await Promise.all([
+      extra.length ? applyStock(extra, [], 'Split pelunasan hutang', u.name) : Promise.resolve(),
+      insertSale({ datetime:new Date().toISOString(), kasir:u.name, table:'HUTANG',
+        method:payload.method, sub:Number(payload.sub)||0, disc:Number(payload.disc)||0,
+        total:Number(payload.total)||0, cash:Number(payload.cash)||0,
+        kembalian:Math.max(0,(Number(payload.cash)||0)-(Number(payload.total)||0)),
+        items:payItems, mix:payload.mix||null })
+    ]);
+
+    const patch = {
+      items: mergeItemsAdd(d.items||[], extra), remaining_items: cur,
+      paid_total: (Number(d.paid_total)||0) + (Number(payload.total)||0)
+    };
+    if (cur.length === 0) { patch.paid = true; patch.paid_date = new Date().toISOString(); patch.method = payload.method||'Tunai'; }
+    need(( await db.from('debts').update(patch).eq('id', String(payload.debtId)) ).error);
+
+    const [debts, products] = await Promise.all([ API.getDebts(token), getProductsList() ]);
+    return { debts, products, no, remaining: cur.length };
   },
 
   async unpayDebt(token, id){
@@ -920,11 +993,11 @@ const API = {
     const { data: d } = await db.from('debts').select('*').eq('id', String(id)).maybeSingle();
     if (!d) throw new Error('Hutang tidak ditemukan.');
     if (!d.paid) throw new Error('Hutang ini belum lunas.');
-    const amount = Number(d.total)||0;
+    const amount = Number(d.paid_total)||Number(d.total)||0;
     const negItems = (d.items||[]).map(it => ({ id:it.id, name:it.name, qty:-Number(it.qty), price:Number(it.price) }));
     const no = await insertSale({ datetime:new Date().toISOString(), kasir:u.name, table:'HUTANG',
       method:d.method||'Tunai', sub:-amount, disc:0, total:-amount, cash:-amount, kembalian:0, items:negItems, mix:null }, 'B');
-    need(( await db.from('debts').update({ paid:false, paid_date:null, method:'' }).eq('id', String(id)) ).error);
+    need(( await db.from('debts').update({ paid:false, paid_date:null, method:'', remaining_items:d.items||[], paid_total:0 }).eq('id', String(id)) ).error);
     return { debts: await API.getDebts(token), no:no };
   },
 
@@ -933,7 +1006,10 @@ const API = {
     if (!isAdminRole(u.role)) throw new Error('Akses ditolak — khusus Admin/Owner.');
     const { data: d } = await db.from('debts').select('*').eq('id', String(id)).maybeSingle();
     if (!d) throw new Error('Hutang tidak ditemukan.');
-    if (!d.paid) await applyStock([], (d.items||[]).map(it=>({id:it.id,qty:it.qty})), 'Batal hutang', u.name);
+    if (!d.paid) {
+      const outstanding = d.remaining_items || d.items || [];
+      await applyStock([], outstanding.map(it=>({id:it.id,qty:it.qty})), 'Batal hutang', u.name);
+    }
     need(( await db.from('debts').delete().eq('id', String(id)) ).error);
     return { debts: await API.getDebts(token), products: await getProductsList() };
   },
@@ -1232,7 +1308,7 @@ const API = {
     const u = requireUser(token);
     if (!/owner/i.test(u.role)) throw new Error('Khusus Owner.');
     const [sRes, dRes, pRes, aRes, allSales, allExp] = await Promise.all([
-      db.from('settings').select('*'), db.from('debts').select('total,paid'),
+      db.from('settings').select('*'), db.from('debts').select('total,paid,paid_total'),
       db.from('products').select('stock,cost,stok_induk'), db.from('assets').select('*'),
       fetchAllRows('sales', 'total'), fetchAllRows('expenses', 'amount,cat')
     ]);
@@ -1242,7 +1318,7 @@ const API = {
     const modal=num('cap_modalAwal')+num('cap_setoran');
     const prive=num('cap_prive')+priveCat;
     const hutangBank=num('cap_hutangBank'), hutangLain=num('cap_hutangLain');
-    const piutang=(dRes.data||[]).filter(d=>!d.paid).reduce((s,d)=>s+(Number(d.total)||0),0);
+    const piutang=(dRes.data||[]).filter(d=>!d.paid).reduce((s,d)=>s+((Number(d.total)||0)-(Number(d.paid_total)||0)),0);
     const persediaan=(pRes.data||[]).filter(p=>String(p.stok_induk||'').trim()==='').reduce((s,p)=>s+(Number(p.stock)||0)*(Number(p.cost)||0),0);
     const now=Date.now(); let asetTetap=0;
     (aRes.data||[]).forEach(a=>{ const p=Number(a.buy_price)||0, l=Number(a.life_years)||0;
@@ -1436,7 +1512,7 @@ const API = {
     const [salesData, prodRes, expRes, consRes, ccRes, coRes, debtRes] = await Promise.all([
       fetchAllRows('sales', '*', q => q.gte('datetime', _biStart).lt('datetime', _biEnd)), db.from('products').select('*'), db.from('expenses').select('*'),
       db.from('consumption').select('*'), db.from('cash_close').select('*'), db.from('cash_open').select('*'),
-      db.from('debts').select('total,paid')
+      db.from('debts').select('total,paid,paid_total')
     ]);
     const prods = prodRes.data||[]; const byId={}; prods.forEach(p=>byId[String(p.id)]=p);
     const shareOf = it => { const p=byId[String(it.id)]; if(!p) return 0;
@@ -1472,7 +1548,7 @@ const API = {
     (ccRes.data||[]).forEach(z=>{ const k=ymd2(z.date); if(k<fromY||k>toY) return; closedDays++;
       const s=Number(z.selisih)||0; absSel+=Math.abs(s); netSel+=s; titipanPaid+=Number(z.titipan_mitra)||0; });
     let openDays=0; (coRes.data||[]).forEach(o=>{ const k=ymd2(o.date); if(k>=fromY&&k<=toY) openDays++; });
-    const piutang = (debtRes.data||[]).filter(x=>!x.paid).reduce((s,x)=>s+(Number(x.total)||0),0);
+    const piutang = (debtRes.data||[]).filter(x=>!x.paid).reduce((s,x)=>s+((Number(x.total)||0)-(Number(x.paid_total)||0)),0);
 
     const salesDays=Object.keys(cur.days).length;
     const laba=cur.omzet-expC.total, labaP=prv.omzet-expP.total;
@@ -1606,7 +1682,7 @@ const API = {
     const [salesData, prodRes, debtRes, expRes, coRes] = await Promise.all([
       fetchAllRows('sales', 'datetime,total,method,mix,items,kasir', q => q.gte('datetime', _dbStart).lt('datetime', _dbEnd)),
       db.from('products').select('id,name,stock,min,mitra,stok_induk,active'),
-      db.from('debts').select('total,paid'),
+      db.from('debts').select('total,paid,paid_total'),
       db.from('expenses').select('date,amount,type'),
       db.from('cash_open').select('opening').eq('date', today).maybeSingle()
     ]);
@@ -1647,7 +1723,7 @@ const API = {
       .sort((a,b)=>a.stock-b.stock);
 
     // piutang
-    const piutang = (debtRes.data||[]).filter(d=>!d.paid).reduce((a,d)=>a+(Number(d.total)||0),0);
+    const piutang = (debtRes.data||[]).filter(d=>!d.paid).reduce((a,d)=>a+((Number(d.total)||0)-(Number(d.paid_total)||0)),0);
     const piutangCount = (debtRes.data||[]).filter(d=>!d.paid).length;
 
     // chart data

@@ -547,7 +547,7 @@
         <div class="line"><span>Diskon</span><span id="sumDisc">Rp 0</span></div>
         <div class="line total"><span>TOTAL</span><span id="sumTotal">Rp 0</span></div>
 
-        <div class="paytype">
+        <div class="paytype" id="paytypeRow">
           <button id="ptBayar" class="on" onclick="setPayType('bayar')">💵 Bayar Sekarang</button>
           <button id="ptMeja" onclick="setPayType('meja')">🍽️ Simpan ke Meja</button>
           <button id="ptTab" onclick="setPayType('tab')">🪑 Tanpa Meja</button>
@@ -687,7 +687,7 @@
   <div class="sheet" style="max-width:660px">
     <header><h3 id="splitTitle">✂️ Split Bill</h3><button onclick="closeOverlay('splitOverlay')">✕</button></header>
     <div class="sheet-body">
-      <p style="margin:0 0 12px;font-size:13px;color:#6B5D52">Atur berapa item yang dibayar sekarang. Sisanya tetap di meja.</p>
+      <p style="margin:0 0 12px;font-size:13px;color:#6B5D52" id="splitHint">Atur berapa item yang dibayar sekarang. Sisanya tetap di meja.</p>
       <div id="splitItems"></div>
       <div id="splitExtraBox"></div>
       <button class="btn" style="background:#efe7db;color:#6f5836;margin-top:6px" onclick="toggleSplitAdd()">➕ Tambah Item (kue dll.)</button>
@@ -1243,7 +1243,7 @@ function run(fn){const a=[].slice.call(arguments,1);return new Promise((res,rej)
 
 let state={token:null,user:null,products:[],tables:[],users:[],stockLog:[],debts:[]};
 let cart=[],discType="rp",payType="bayar",activeCat="Semua";
-let cartMode="new",editingTable=null,editingKind="meja",originalCommitted={};
+let cartMode="new",editingTable=null,editingKind="meja",editingDebtId=null,originalCommitted={};
 let pinTargetId=null,pinEntry="",busy=false,staffTiles=[],lastReceipt=null,lastZ=null;
 
 const CAT_LIST=["Reguler","Varian Sachet","Signature","Makanan","Bungkus"];
@@ -1486,14 +1486,40 @@ function openTableOrder(no){
   closeOverlay("mejaOverlay");setPayType("meja");renderProducts();renderCart();toggleCart(true);
 }
 function payTable(no){openTableOrder(no);setPayType("bayar");toast("Pilih metode bayar untuk "+(tbl(no)&&tbl(no).kind==="tab"?(tbl(no).order?tbl(no).order.name:"tab"):labelByNo(no)));}
+function openDebtOrder(id){
+  const d=(state.debts||[]).find(x=>x.id===id);
+  if(!d){toast("Hutang tidak ditemukan");return;}
+  const items=d.remainingItems||[];
+  if(!items.length){toast("Tidak ada sisa hutang untuk dibayar");return;}
+  cartMode="edit";editingTable=null;editingKind="debt";editingDebtId=id;originalCommitted={};
+  items.forEach(it=>originalCommitted[it.id]=(originalCommitted[it.id]||0)+Number(it.qty));
+  cart=items.map(i=>({id:i.id,qty:i.qty}));
+  document.getElementById("custName").value=d.name||"";
+  document.getElementById("custNote").value=d.note||"";
+  document.getElementById("discInput").value=0;document.getElementById("cashIn").value="";
+  document.getElementById("cartTitle").textContent="📒 "+d.name;
+  document.getElementById("editBanner").classList.remove("hidden");
+  document.getElementById("editBannerText").textContent="📒 Pelunasan hutang · "+d.name+(d.paidTotal>0?" (sudah dibayar "+rp(d.paidTotal)+")":"");
+  closeOverlay("debtOverlay");
+  document.getElementById("paytypeRow").classList.add("hidden");
+  setPayType("bayar");
+  renderProducts();renderCart();toggleCart(true);
+}
+function payDebtButton(id){
+  openDebtOrder(id);
+  const d=(state.debts||[]).find(x=>x.id===id);
+  if(d)toast("Pilih metode bayar untuk "+d.name);
+}
 function cancelEdit(){exitEdit();clearCart();renderProducts();renderCart();}
 function exitEdit(){
-  cartMode="new";editingTable=null;editingKind="meja";originalCommitted={};cart=[];
+  cartMode="new";editingTable=null;editingKind="meja";editingDebtId=null;originalCommitted={};cart=[];
   ["custName","custNote"].forEach(id=>document.getElementById(id).value="");
   document.getElementById("discInput").value=0;document.getElementById("cashIn").value="";
   document.getElementById("cartTitle").textContent="Transaksi Baru";
   document.getElementById("editBanner").classList.add("hidden");
-  document.getElementById("ptMeja").textContent="🍽️ Simpan ke Meja";setPayType("bayar");
+  document.getElementById("ptMeja").textContent="🍽️ Simpan ke Meja";
+  document.getElementById("paytypeRow").classList.remove("hidden");
+  setPayType("bayar");
   setPayMethod("Tunai");
 }
 function snapItems(){return cart.map(c=>{const p=prod(c.id);return{id:p.id,name:p.name,qty:c.qty,price:p.price};});}
@@ -1554,7 +1580,9 @@ async function checkout(){
       methodLabel="Campur: Tunai "+rp(c)+" + QRIS "+rp(tot-c);
     }
     if(method==="Tunai"&&cash<tot){toast("Uang masuk kurang dari total");return;}
-    const fromTable=cartMode==="edit"?editingTable:null;
+    const isDebtEdit=cartMode==="edit"&&editingKind==="debt";
+    const debtId=isDebtEdit?editingDebtId:null;
+    const fromTable=(cartMode==="edit"&&!isDebtEdit)?editingTable:null;
     const items=snapItems(),sub=subtotal(),disc=discountAmount(),cust=document.getElementById("custName").value.trim();
     // cek dobel-input: transaksi identik baru saja diproses beberapa saat lalu?
     const chkSig=items.map(it=>it.id+'x'+it.qty).sort().join(',');
@@ -1568,18 +1596,20 @@ async function checkout(){
     showReceipt(myReceipt);
     exitEdit();toggleCart(false);renderProducts();renderCart();
     // >>> SIMPAN DI BELAKANG LAYAR (tanpa await)
-    run("checkout",state.token,{fromNo:fromTable,items,method,cash,sub,disc,total:tot,cust,mix})
-      .then(r=>{
+    const call=isDebtEdit
+      ? run("debtCheckout",state.token,{debtId,items,method,cash,sub,disc,total:tot,mix})
+      : run("checkout",state.token,{fromNo:fromTable,items,method,cash,sub,disc,total:tot,cust,mix});
+    call.then(r=>{
         applyResult(r);
         myReceipt.no=r.no;
         window._lastCheckoutSig={sig:chkSig,total:tot,time:Date.now(),no:r.no};
         if(lastReceipt===myReceipt && isOpen("receiptOverlay")) showReceipt(myReceipt); // perbarui nomor struk
-        toast("✅ Lunas · "+r.no+(fromTable?" (Meja "+fromTable+")":""));
+        toast(isDebtEdit?("✅ Hutang "+cust+" lunas · "+r.no):("✅ Lunas · "+r.no+(fromTable?" (Meja "+fromTable+")":"")));
       })
       .catch(e=>{
         closeOverlay("receiptOverlay");
-        alert("⚠️ PEMBAYARAN GAGAL TERSIMPAN!\n\nPesanan TIDAK tercatat. Silakan ulangi transaksi.\n\nDetail error (foto ini kalau lapor ke admin):\n"+((e&&e.message)||e||"tidak diketahui"));
-        if(!fromTable && cart.length===0){cart=backup.cart;renderProducts();renderCart();toggleCart(true);}
+        alert("⚠️ PEMBAYARAN GAGAL TERSIMPAN!\n\n"+(isDebtEdit?"Pelunasan hutang":"Pesanan")+" TIDAK tercatat. Silakan ulangi "+(isDebtEdit?"dari menu Hutang":"transaksi")+".\n\nDetail error (foto ini kalau lapor ke admin):\n"+((e&&e.message)||e||"tidak diketahui"));
+        if(!fromTable && !isDebtEdit && cart.length===0){cart=backup.cart;renderProducts();renderCart();toggleCart(true);}
       });
     return;
   }
@@ -1975,24 +2005,26 @@ async function openDebt(){
   updateDebtBadge();renderDebts();
 }
 function debtCard(d,paid){
-  const items=d.items.map(i=>i.name+" x"+i.qty).join(", ");
+  const items=(paid?d.items:d.remainingItems).map(i=>i.name+" x"+i.qty).join(", ");
   const when=d.datetime?idDate(d.datetime):"";
   if(paid){
-    return `<div class="meja" style="opacity:.75"><div class="mj-no">${d.name} <span class="mj-status ms-kosong">Lunas</span></div><div class="mj-info">${rp(d.total)} · ${d.method} · ${d.paidDate?idDate(d.paidDate):""}<br><span style="font-size:11px">${items}</span></div>${isAdmin()?`<div class="mj-actions"><button class="mb-ghost" onclick="unpayDebtC('${d.id}')">↩️ Batal Lunas</button></div>`:""}</div>`;
+    return `<div class="meja" style="opacity:.75"><div class="mj-no">${d.name} <span class="mj-status ms-kosong">Lunas</span></div><div class="mj-info">${rp(d.paidTotal||d.total)} · ${d.method} · ${d.paidDate?idDate(d.paidDate):""}<br><span style="font-size:11px">${items}</span></div>${isAdmin()?`<div class="mj-actions"><button class="mb-ghost" onclick="unpayDebtC('${d.id}')">↩️ Batal Lunas</button></div>`:""}</div>`;
   }
   const adm=isAdmin();
-  return `<div class="meja terisi"><div class="mj-no">${d.name} <span class="mj-status ms-terisi">${rp(d.total)}</span></div>
-    <div class="mj-info">${when}${d.phone?" · "+d.phone:""}${d.note?" · "+d.note:""}<br><span style="font-size:11px">${items}</span></div>
+  const partialNote=d.paidTotal>0?`<div style="font-size:11.5px;color:#256B4D;font-weight:600;margin-top:2px">✓ Sudah dibayar sebagian ${rp(d.paidTotal)}</div>`:"";
+  return `<div class="meja terisi"><div class="mj-no">${d.name} <span class="mj-status ms-terisi">${rp(d.owed)}</span></div>
+    <div class="mj-info">${when}${d.phone?" · "+d.phone:""}${d.note?" · "+d.note:""}<br><span style="font-size:11px">${items}</span></div>${partialNote}
     <div class="mj-actions" style="align-items:center;flex-wrap:wrap">
-      <select id="dm-${d.id}" style="padding:7px 8px;border:1.5px solid var(--line);border-radius:8px;font-size:13px"><option>Tunai</option><option>QRIS</option><option>Transfer</option></select>
-      <button class="mb-pay" onclick="payDebtC('${d.id}')">✓ Lunas</button>
+      <button class="mb-open" onclick="openDebtOrder('${d.id}')">✏️ Buka/Tambah</button>
+      <button class="mb-pay" onclick="payDebtButton('${d.id}')">💵 Bayar</button>
+      <button class="mb-ghost" onclick="openSplitDebt('${d.id}')">✂️ Split</button>
       ${adm?`<button class="mb-ghost" onclick="deleteDebtC('${d.id}')">🗑 Hapus</button>`:""}
     </div></div>`;
 }
 function renderDebts(){
   const debts=state.debts||[];
   const unpaid=debts.filter(d=>!d.paid),paid=debts.filter(d=>d.paid);
-  const outstanding=unpaid.reduce((s,d)=>s+d.total,0);
+  const outstanding=unpaid.reduce((s,d)=>s+d.owed,0);
   document.getElementById("debtSummary").innerHTML=`
     <div class="inv-stat"><div class="v" style="font-size:16px;color:#A8420C">${rp(outstanding)}</div><div class="l">Total Piutang (belum lunas)</div></div>
     <div class="inv-stat"><div class="v">${unpaid.length}</div><div class="l">Orang Belum Lunas</div></div>`;
@@ -2001,20 +2033,9 @@ function renderDebts(){
   if(paid.length)h+='<div style="font-size:12px;color:#6B5D52;margin:16px 0 6px;font-weight:600">Riwayat Lunas Terakhir</div>'+paid.slice(0,15).map(d=>debtCard(d,true)).join("");
   document.getElementById("debtList").innerHTML=h;
 }
-async function payDebtC(id){
-  const d=state.debts.find(x=>x.id===id);if(!d)return;
-  const sel=document.getElementById("dm-"+id);const method=sel?sel.value:"Tunai";
-  if(!confirm("Tandai hutang "+d.name+" ("+rp(d.total)+") sebagai LUNAS?"))return;
-  try{
-    const r=await run("payDebt",state.token,id,method,d.total);
-    applyResult(r);
-    showReceipt({no:r.no,method,cash:d.total,kembalian:0,items:d.items,sub:d.total,disc:0,total:d.total,kasir:state.user.name,date:new Date(),cust:d.name});
-    toast("✅ Hutang "+d.name+" lunas");
-  }catch(e){}
-}
 async function unpayDebtC(id){
   const d=state.debts.find(x=>x.id===id);if(!d)return;
-  if(!confirm("Batalkan pelunasan "+d.name+" ("+rp(d.total)+")?\nUang pelunasannya dikontra hari ini & hutang kembali BELUM LUNAS."))return;
+  if(!confirm("Batalkan pelunasan "+d.name+" ("+rp(d.paidTotal||d.total)+")?\nUang pelunasannya dikontra hari ini & hutang kembali BELUM LUNAS."))return;
   try{const r=await run("unpayDebt",state.token,id);if(r.debts)state.debts=r.debts;renderDebts();toast("↩️ Pelunasan dibatalkan · "+r.no);}catch(e){}
 }
 async function deleteDebtC(id){
@@ -2024,19 +2045,36 @@ async function deleteDebtC(id){
 }
 
 /* ---------- SPLIT BILL ---------- */
-let splitNo=null,splitSel={},splitPeople=2;
+let splitNo=null,splitSel={},splitPeople=2,splitKind="meja";
 function openSplit(no){
   const t=tbl(no);if(!t||!t.order){toast("Meja kosong");return;}
-  splitNo=no;splitSel={};splitPeople=2;splitExtra={};
+  splitKind="meja";splitNo=no;splitSel={};splitPeople=2;splitExtra={};
   document.getElementById("splitAddPanel").classList.add("hidden");
   document.getElementById("splitAddSearch").value="";
   document.getElementById("splitTitle").textContent="✂️ Split Bill — Meja "+no;
+  document.getElementById("splitHint").textContent="Atur berapa item yang dibayar sekarang. Sisanya tetap di meja.";
   document.getElementById("splitCash").value="";
   closeOverlay("mejaOverlay");
   renderSplit();
   document.getElementById("splitOverlay").classList.remove("hidden");
 }
-function splitItems(){const t=tbl(splitNo);return t&&t.order?t.order.items:[];}
+function openSplitDebt(id){
+  const d=(state.debts||[]).find(x=>x.id===id);
+  if(!d||!d.remainingItems||!d.remainingItems.length){toast("Tidak ada sisa hutang untuk di-split");return;}
+  splitKind="debt";splitNo=id;splitSel={};splitPeople=2;splitExtra={};
+  document.getElementById("splitAddPanel").classList.add("hidden");
+  document.getElementById("splitAddSearch").value="";
+  document.getElementById("splitTitle").textContent="✂️ Split Bill — "+d.name;
+  document.getElementById("splitHint").textContent="Atur berapa item yang dibayar sekarang. Sisanya tetap jadi hutang.";
+  document.getElementById("splitCash").value="";
+  closeOverlay("debtOverlay");
+  renderSplit();
+  document.getElementById("splitOverlay").classList.remove("hidden");
+}
+function splitItems(){
+  if(splitKind==="debt"){const d=(state.debts||[]).find(x=>x.id===splitNo);return d?d.remainingItems:[];}
+  const t=tbl(splitNo);return t&&t.order?t.order.items:[];
+}
 function splitChange(id,d){
   const it=splitItems().find(x=>String(x.id)===String(id));if(!it)return;
   const cur=splitSel[id]||0,next=Math.min(it.qty,Math.max(0,cur+d));
@@ -2112,12 +2150,16 @@ async function splitPay(){
   const items=splitItems().filter(it=>(splitSel[it.id]||0)>0).map(it=>({id:it.id,name:it.name,qty:splitSel[it.id],price:it.price}));
   Object.keys(splitExtra).forEach(id=>{const q=splitExtra[id];if(q>0){const p=prod(id);if(p)items.push({id:p.id,name:p.name,qty:q,price:p.price});}});
   const no=splitNo;
+  const isDebt=splitKind==="debt";
+  const debtObj=isDebt?(state.debts||[]).find(x=>x.id===no):null;
   // struk muncul instan
-  const myReceipt={no:"⏳ memproses…",method:methodLabel,cash,kembalian:Math.max(0,cash-tot),items,sub:tot,disc:0,total:tot,kasir:state.user.name,date:new Date(),meja:no,cust:""};
+  const myReceipt={no:"⏳ memproses…",method:methodLabel,cash,kembalian:Math.max(0,cash-tot),items,sub:tot,disc:0,total:tot,kasir:state.user.name,date:new Date(),meja:isDebt?null:no,cust:isDebt&&debtObj?debtObj.name:""};
   showReceipt(myReceipt);
   // simpan di belakang layar — TAPI panel split TIDAK langsung ditutup
-  run("splitCheckout",state.token,{tableNo:no,items,method,cash,sub:tot,disc:0,total:tot,mix})
-    .then(r=>{
+  const call=isDebt
+    ? run("debtSplitCheckout",state.token,{debtId:no,items,method,cash,sub:tot,disc:0,total:tot,mix})
+    : run("splitCheckout",state.token,{tableNo:no,items,method,cash,sub:tot,disc:0,total:tot,mix});
+  call.then(r=>{
       applyResult(r);
       myReceipt.no=r.no;
       if(lastReceipt===myReceipt&&isOpen("receiptOverlay"))showReceipt(myReceipt);
@@ -2131,14 +2173,14 @@ async function splitPay(){
         renderSplit();
         toast("✅ Lunas "+r.no+" · lanjut bayar berikutnya ("+r.remaining+" item sisa)");
       }else{
-        // MEJA SUDAH LUNAS SEMUA → baru tutup
+        // SEMUA SUDAH LUNAS → baru tutup
         closeOverlay("splitOverlay");
-        toast("✅ Meja LUNAS semua · "+r.no);
+        toast(isDebt?("✅ Hutang LUNAS semua · "+r.no):("✅ Meja LUNAS semua · "+r.no));
       }
     })
     .catch(e=>{
       closeOverlay("receiptOverlay");
-      alert("⚠️ PEMBAYARAN SPLIT GAGAL TERSIMPAN!\n\nPembayaran TIDAK tercatat. Silakan ulangi dari menu meja.\n\nDetail error (foto ini kalau lapor ke admin):\n"+((e&&e.message)||e||"tidak diketahui"));
+      alert("⚠️ PEMBAYARAN SPLIT GAGAL TERSIMPAN!\n\nPembayaran TIDAK tercatat. Silakan ulangi dari menu "+(isDebt?"Hutang":"meja")+".\n\nDetail error (foto ini kalau lapor ke admin):\n"+((e&&e.message)||e||"tidak diketahui"));
     });
 }
 
